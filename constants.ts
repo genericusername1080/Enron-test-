@@ -13,6 +13,14 @@ export const PRICES = {
     AUTOSCRAM: 1200
 };
 
+export const HISTORIC_WEATHER = [
+    { date: "AUG 2000", condition: 'sunny', report: "RECORD HEATWAVE (109°F). GRID STRAIN CRITICAL.", type: 'danger' },
+    { date: "DEC 2000", condition: 'snowy', report: "CALIFORNIA FREEZE. ROLLING BLACKOUTS.", type: 'warning' },
+    { date: "JUN 2001", condition: 'rainy', report: "T.S. ALLISON. DOWNTOWN HOUSTON FLOODED.", type: 'danger' },
+    { date: "JAN 2001", condition: 'cloudy', report: "STAGE 3 POWER EMERGENCY DECLARED.", type: 'warning' },
+    { date: "MAY 2000", condition: 'thunderstorm', report: "SEVERE GULF STORMS. PLATFORMS EVACUATED.", type: 'warning' }
+] as const;
+
 export const INITIAL_STATE = {
     temp: 300,
     pressure: 0,

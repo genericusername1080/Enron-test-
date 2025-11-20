@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, RotateCcw, AlertTriangle, Zap, DollarSign, Activity, ShieldAlert, TrendingUp, TrendingDown, Lock, Globe } from 'lucide-react';
+import { Play, RotateCcw, AlertTriangle, Zap, DollarSign, Activity, ShieldAlert, TrendingUp, TrendingDown, Lock, Globe, XCircle, Siren } from 'lucide-react';
 import Scene3D from './components/Scene3D';
 import ProgressBar from './components/UI/ProgressBar';
 import { GameState, LogEvent, StockPoint, Difficulty } from './types';
-import { INITIAL_STATE, PRICES, MAX_TEMP, MAX_PRES, MAX_RAD, MAX_POWER } from './constants';
+import { INITIAL_STATE, PRICES, MAX_TEMP, MAX_PRES, MAX_RAD, MAX_POWER, HISTORIC_WEATHER } from './constants';
 import { playSound, initAudio } from './utils/audioUtils';
 import { generateCorporateSpin } from './services/geminiService';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -21,13 +21,31 @@ const App: React.FC = () => {
     const [started, setStarted] = useState(false);
     const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.ETHICAL);
     const [ticker, setTicker] = useState("Initializing Enron Data Feed...");
+    const [activeAlert, setActiveAlert] = useState<{title: string, message: string, type: 'warning' | 'danger'} | null>(null);
 
     // Helper to add logs
     const addLog = useCallback((message: string, type: LogEvent['type'] = 'info') => {
         const newLog = { id: Date.now(), message, type, timestamp: new Date().toLocaleTimeString() };
         setLogs(prev => [newLog, ...prev].slice(0, 5));
-        if (type === 'danger') playSound('alarm');
     }, []);
+
+    // Trigger High Visibility Alert
+    const triggerAlert = useCallback((title: string, message: string, type: 'warning' | 'danger' = 'warning') => {
+        setActiveAlert({ title, message, type });
+        addLog(`${title}: ${message}`, type);
+        
+        if (type === 'danger') {
+            playSound('alarm');
+            // Multiple alarms for emphasis/panic
+            setTimeout(() => playSound('alarm'), 300);
+            setTimeout(() => playSound('alarm'), 600);
+        } else {
+            playSound('repair'); // Use repair sound as a "Notice" tone
+        }
+
+        // Clear after 4 seconds
+        setTimeout(() => setActiveAlert(null), 4000);
+    }, [addLog]);
 
     // Game Loop
     useEffect(() => {
@@ -60,20 +78,38 @@ const App: React.FC = () => {
             }
 
             // Event Generator (Weather & Failures)
-            const eventChance = 0.001 * s.difficulty;
+            const eventChance = 0.003 * s.difficulty;
             if (Math.random() < eventChance) {
-               // 30% chance of system failure, 70% weather
-               if (Math.random() < 0.3 && s.difficulty > 1) {
+               const roll = Math.random();
+               
+               // 1. System Failure (High Diff only)
+               if (roll < 0.3 && s.difficulty > 1) {
                     if (Math.random() > 0.5) {
                         s.pump = false;
-                        addLog("PUMP TRIP - MECHANICAL FAILURE", 'danger');
+                        triggerAlert("PUMP FAILURE", "Cooling system compromised. Temp rising rapidly. RESTART PUMP IMMEDIATELY.", 'danger');
                     } else {
                         s.valve = Math.max(0, s.valve - 25);
-                        addLog("VALVE JAM - FLOW RESTRICTED", 'warning');
+                        triggerAlert("VALVE JAMMED", "Steam flow restricted. Pressure building critical. ADJUST VALVES.", 'warning');
                     }
-               } else {
+               } 
+               // 2. Historic Weather Event (20% chance)
+               else if (roll < 0.5) {
+                    const report = HISTORIC_WEATHER[Math.floor(Math.random() * HISTORIC_WEATHER.length)];
+                    if (s.weather !== report.condition) {
+                        s.weather = report.condition;
+                        triggerAlert(`ARCHIVE: ${report.date}`, report.report, report.type);
+                    }
+               }
+               // 3. Random Weather
+               else {
                    const weathers = ['sunny', 'cloudy', 'rainy', 'snowy', 'thunderstorm'] as const;
-                   s.weather = weathers[Math.floor(Math.random() * weathers.length)];
+                   const newWeather = weathers[Math.floor(Math.random() * weathers.length)];
+                   if (newWeather !== s.weather) {
+                       if (newWeather === 'thunderstorm' || newWeather === 'rainy') {
+                           addLog(`Weather Update: ${newWeather.toUpperCase()}`, 'info');
+                       }
+                       s.weather = newWeather;
+                   }
                }
             }
 
@@ -150,7 +186,7 @@ const App: React.FC = () => {
                 s.rods = 100;
                 s.valve = 100;
                 s.hasAutoScram = false;
-                addLog("AUTO-SCRAM TRIGGERED", 'danger');
+                triggerAlert("AUTO-SCRAM TRIGGERED", "Emergency shutdown initiated. Control rods fully inserted.", 'danger');
             }
 
             // Game Over Checks
@@ -188,7 +224,7 @@ const App: React.FC = () => {
             clearInterval(histInterval);
             clearInterval(tickerInterval);
         };
-    }, [started, addLog]);
+    }, [started, addLog, triggerAlert]);
 
     // --- Actions ---
     const handleStart = () => {
@@ -301,10 +337,31 @@ const App: React.FC = () => {
     }
 
     return (
-        <div className="h-screen w-screen relative overflow-hidden text-white">
+        <div className={`h-screen w-screen relative overflow-hidden text-white ${activeAlert?.type === 'danger' ? 'animate-flash-red' : ''}`}>
             {/* Background Scene */}
             <Scene3D gameState={gameState} cutaway={cutaway} />
             
+            {/* Critical Alert Overlay */}
+            {activeAlert && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+                    <div className={`relative max-w-xl w-full mx-4 p-8 rounded-2xl border-4 shadow-2xl backdrop-blur-xl flex flex-col items-center text-center gap-4 animate-pop-in ${
+                        activeAlert.type === 'danger' 
+                            ? 'bg-red-950/90 border-red-500 text-white shadow-[0_0_100px_rgba(220,38,38,0.6)] animate-pulse' 
+                            : 'bg-yellow-950/90 border-yellow-500 text-yellow-100 shadow-[0_0_50px_rgba(234,179,8,0.6)]'
+                    }`}>
+                        <div className={`p-5 rounded-full shadow-lg ${activeAlert.type === 'danger' ? 'bg-red-600 text-white' : 'bg-yellow-500 text-black'}`}>
+                            {activeAlert.type === 'danger' ? <Siren size={64} /> : <AlertTriangle size={64} />}
+                        </div>
+                        <div>
+                            <h2 className="text-5xl font-black uppercase tracking-widest italic mb-2 drop-shadow-lg">{activeAlert.title}</h2>
+                            <div className="text-xl font-mono border-t-2 border-white/20 pt-4 mt-2 leading-snug font-bold">
+                                {activeAlert.message}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Game Over Overlay */}
             {uiState.gameOver && (
                 <div className="absolute inset-0 z-50 bg-black/90 flex items-center justify-center flex-col backdrop-blur-md animate-in fade-in duration-1000">
@@ -499,7 +556,7 @@ const App: React.FC = () => {
                                     <button 
                                         onClick={() => {
                                             gameState.current.artificialShortage = !gameState.current.artificialShortage;
-                                            addLog("Grid Manipulation Toggled", 'warning');
+                                            triggerAlert("GRID MANIPULATION", `Artificial shortage ${!gameState.current.artificialShortage ? 'active' : 'disabled'}. Prices volatile.`, 'warning');
                                         }}
                                         className={`w-full py-3 bg-purple-500/20 border border-purple-500/50 text-purple-300 rounded hover:bg-purple-500/30 text-xs font-bold flex items-center justify-center gap-2 ${uiState.artificialShortage ? 'bg-purple-600/50 ring-1 ring-purple-400' : ''}`}
                                     >
