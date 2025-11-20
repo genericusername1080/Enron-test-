@@ -41,6 +41,9 @@ export interface GameState {
     hasAutoScram: boolean;
     lobbyingLevel: number;
     artificialShortage: boolean;
+    
+    // Settings
+    difficulty: Difficulty;
 }
 
 export interface LogEvent {

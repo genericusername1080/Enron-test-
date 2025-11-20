@@ -39,5 +39,6 @@ export const INITIAL_STATE = {
     pumpLevel: 1,
     hasAutoScram: false,
     lobbyingLevel: 0,
-    artificialShortage: false
+    artificialShortage: false,
+    difficulty: 1
 } as const;

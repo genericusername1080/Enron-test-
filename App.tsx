@@ -42,21 +42,39 @@ const App: React.FC = () => {
             if (s.dayTime >= 24) {
                 s.dayTime = 0;
                 s.dayCount++;
-                // Interest Logic
+                // Interest Logic - Difficulty impacts base rate
                 if (s.loan > 0) {
-                    const rate = 0.15 - (s.creditScore / 1000);
+                    const baseRate = 0.12 + (s.difficulty * 0.03);
+                    const rate = Math.max(0.05, baseRate - (s.creditScore / 1000));
                     const interest = s.loan * rate;
                     s.score -= interest;
                     addLog(`Interest Paid: -$${Math.floor(interest)}`, 'warning');
                 }
-                if (s.auditRisk > 0) s.auditRisk -= 2;
+                
+                // Audit Decay - Slower on higher difficulty
+                if (s.auditRisk > 0) {
+                    const decay = 3 / s.difficulty; 
+                    s.auditRisk = Math.max(0, s.auditRisk - decay);
+                }
                 if (s.offshore > 0) s.offshore *= 1.05;
             }
 
-            // Weather Randomizer
-            if (Math.random() < 0.001) {
-               const weathers = ['sunny', 'cloudy', 'rainy', 'snowy', 'thunderstorm'] as const;
-               s.weather = weathers[Math.floor(Math.random() * weathers.length)];
+            // Event Generator (Weather & Failures)
+            const eventChance = 0.001 * s.difficulty;
+            if (Math.random() < eventChance) {
+               // 30% chance of system failure, 70% weather
+               if (Math.random() < 0.3 && s.difficulty > 1) {
+                    if (Math.random() > 0.5) {
+                        s.pump = false;
+                        addLog("PUMP TRIP - MECHANICAL FAILURE", 'danger');
+                    } else {
+                        s.valve = Math.max(0, s.valve - 25);
+                        addLog("VALVE JAM - FLOW RESTRICTED", 'warning');
+                    }
+               } else {
+                   const weathers = ['sunny', 'cloudy', 'rainy', 'snowy', 'thunderstorm'] as const;
+                   s.weather = weathers[Math.floor(Math.random() * weathers.length)];
+               }
             }
 
             // Physics Simulation
@@ -193,7 +211,10 @@ const App: React.FC = () => {
     };
 
     const handleBuy = (item: keyof typeof PRICES) => {
-        const cost = PRICES[item];
+        // Difficulty increases shop costs
+        const diffMult = 1 + (gameState.current.difficulty - 1) * 0.25; 
+        const cost = PRICES[item] * diffMult;
+
         if (gameState.current.score >= cost) {
             if (item === 'SHRED') {
                 gameState.current.auditRisk = Math.max(0, gameState.current.auditRisk - 30);
@@ -209,16 +230,21 @@ const App: React.FC = () => {
             gameState.current.score -= cost;
             playSound('buy');
         } else {
+            addLog(`Insufficient Funds. Need $${Math.floor(cost)}`, 'warning');
             playSound('alarm');
         }
     };
 
     const cookBooks = async () => {
-        const gain = 3000 * (difficulty as number);
+        // Higher difficulty = more gain, but WAY more risk
+        const baseGain = 3000;
+        const gain = baseGain + (baseGain * (difficulty - 1) * 0.5);
+        
         gameState.current.score += gain;
-        gameState.current.auditRisk += 15;
+        gameState.current.auditRisk += 15 + (difficulty * 5);
+        
         playSound('cash');
-        addLog(`Books Cooked: +$${gain}`, 'warning');
+        addLog(`Books Cooked: +$${Math.floor(gain)}`, 'warning');
         
         const spin = await generateCorporateSpin(gameState.current, 'profit');
         setTicker(spin);
@@ -226,6 +252,13 @@ const App: React.FC = () => {
 
     const formatMoney = (val: number) => {
         return val >= 0 ? `$${Math.floor(val).toLocaleString()}` : `-$${Math.floor(Math.abs(val)).toLocaleString()}`;
+    };
+
+    const DIFFICULTY_DESC = {
+        [Difficulty.ETHICAL]: "Standard Economy. Low Audit Risk.",
+        [Difficulty.AGGRESSIVE]: "Volatile Market. Mechanical failures occur.",
+        [Difficulty.SKILLING]: "High Returns. High Audit Risk. Freq. Failures.",
+        [Difficulty.FASTOW]: "Extreme Corruption. Max Interest. Max Risk."
     };
 
     if (!started) {
@@ -239,17 +272,20 @@ const App: React.FC = () => {
                     <p className="text-xl font-mono text-blue-200 mb-8 tracking-widest">MELTDOWN MANAGER</p>
                     
                     <div className="space-y-4 mb-8">
-                        <p className="text-gray-400 text-sm">Select Ethics Level</p>
+                        <p className="text-gray-400 text-sm">Select Corporate Strategy</p>
                         <div className="grid grid-cols-2 gap-3">
                             {Object.entries(Difficulty).filter(([k,v]) => typeof v === 'number').map(([key, val]) => (
                                 <button 
                                     key={key}
                                     onClick={() => setDifficulty(val as Difficulty)}
-                                    className={`p-3 rounded border text-xs font-bold transition-all ${difficulty === val ? 'bg-blue-600 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+                                    className={`p-3 rounded border text-xs font-bold transition-all ${difficulty === val ? 'bg-blue-600 border-blue-400 text-white shadow-lg scale-105' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
                                 >
                                     {key}
                                 </button>
                             ))}
+                        </div>
+                        <div className="text-xs text-yellow-400 font-mono h-8 flex items-center justify-center">
+                            {DIFFICULTY_DESC[difficulty]}
                         </div>
                     </div>
 
@@ -514,21 +550,25 @@ const App: React.FC = () => {
                                         { key: 'FIX_PUMP', label: 'Fix Pump', cost: PRICES.FIX_PUMP },
                                         { key: 'PUMP_UPGRADE_BASE', label: 'Upg. Pump', cost: PRICES.PUMP_UPGRADE_BASE * uiState.pumpLevel },
                                         { key: 'AUTOSCRAM', label: 'Auto-SCRAM', cost: PRICES.AUTOSCRAM, disabled: uiState.hasAutoScram }
-                                    ].map((item: any) => (
-                                        <button
-                                            key={item.key}
-                                            onClick={() => handleBuy(item.key)}
-                                            disabled={item.disabled}
-                                            className={`w-full flex justify-between items-center p-2 rounded text-xs border transition-all ${
-                                                uiState.score >= item.cost && !item.disabled
-                                                ? 'bg-white/5 border-white/10 hover:bg-white/10 text-gray-200' 
-                                                : 'bg-black/20 border-transparent text-gray-600 cursor-not-allowed'
-                                            }`}
-                                        >
-                                            <span>{item.label}</span>
-                                            <span className="font-mono font-bold text-yellow-500">${item.cost}</span>
-                                        </button>
-                                    ))}
+                                    ].map((item: any) => {
+                                        const diffMult = 1 + (uiState.difficulty - 1) * 0.25;
+                                        const finalCost = item.cost * diffMult;
+                                        return (
+                                            <button
+                                                key={item.key}
+                                                onClick={() => handleBuy(item.key)}
+                                                disabled={item.disabled}
+                                                className={`w-full flex justify-between items-center p-2 rounded text-xs border transition-all ${
+                                                    uiState.score >= finalCost && !item.disabled
+                                                    ? 'bg-white/5 border-white/10 hover:bg-white/10 text-gray-200' 
+                                                    : 'bg-black/20 border-transparent text-gray-600 cursor-not-allowed'
+                                                }`}
+                                            >
+                                                <span>{item.label}</span>
+                                                <span className="font-mono font-bold text-yellow-500">${Math.floor(finalCost)}</span>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
