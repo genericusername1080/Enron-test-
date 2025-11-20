@@ -1,0 +1,5 @@
+{
+  "name": "Enron: Meltdown Manager",
+  "description": "A satirical corporate survival simulator. Manage a failing nuclear reactor and a fraudulent financial portfolio simultaneously. Uses Gemini 2.5 Flash for dynamic corporate spin-doctoring and events.",
+  "requestFramePermissions": []
+}
