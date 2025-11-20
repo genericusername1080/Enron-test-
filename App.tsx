@@ -299,13 +299,17 @@ const App: React.FC = () => {
 
     if (!started) {
         return (
-            <div className="h-screen w-screen flex items-center justify-center bg-gray-900 text-white relative overflow-hidden">
-                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop')] bg-cover opacity-20 animate-pulse"></div>
-                <div className="z-10 bg-black/80 p-12 rounded-2xl border border-blue-500/30 backdrop-blur-xl shadow-2xl max-w-md text-center">
-                    <h1 className="text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-4">
+            <div className="h-screen w-screen flex items-center justify-center text-white relative overflow-hidden" style={{background: 'radial-gradient(circle at 50% 50%, #1e1b4b 0%, #050510 100%)'}}>
+                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop')] bg-cover opacity-10"></div>
+                <div className="absolute inset-0 opacity-20">
+                    <div className="absolute top-20 left-20 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
+                    <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+                </div>
+                <div className="z-10 glass-panel-strong p-12 rounded-3xl max-w-md text-center animate-float">
+                    <h1 className="text-6xl font-black tracking-tighter gradient-text-blue mb-2">
                         ENRON
                     </h1>
-                    <p className="text-xl font-mono text-blue-200 mb-8 tracking-widest">MELTDOWN MANAGER</p>
+                    <p className="text-xl font-mono text-cyan-300 mb-8 tracking-widest animate-glow-pulse">MELTDOWN MANAGER</p>
                     
                     <div className="space-y-4 mb-8">
                         <p className="text-gray-400 text-sm">Select Corporate Strategy</p>
@@ -325,11 +329,12 @@ const App: React.FC = () => {
                         </div>
                     </div>
 
-                    <button 
+                    <button
                         onClick={handleStart}
-                        className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(37,99,235,0.5)]"
+                        className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 btn-glow-blue shadow-lg relative overflow-hidden"
                     >
-                        <Play size={20} /> INITIALIZE MARKET
+                        <div className="absolute inset-0 animate-shimmer"></div>
+                        <Play size={20} className="relative z-10" /> <span className="relative z-10">INITIALIZE MARKET</span>
                     </button>
                 </div>
             </div>
@@ -379,31 +384,35 @@ const App: React.FC = () => {
             )}
 
             {/* Top HUD */}
-            <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start z-20 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-                <div className="flex flex-col gap-1">
-                    <div className="bg-black/40 backdrop-blur border border-white/10 rounded px-4 py-2">
-                        <div className="text-xs text-blue-400 font-bold tracking-wider">STOCK PRICE</div>
-                        <div className={`text-3xl font-black font-mono ${uiState.score > 0 ? 'text-green-400' : 'text-red-500'}`}>
+            <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start z-20 bg-gradient-to-b from-black/90 via-black/50 to-transparent pointer-events-none">
+                <div className="flex flex-col gap-2">
+                    <div className="glass-panel rounded-xl px-5 py-3 shadow-xl">
+                        <div className="text-xs text-cyan-400 font-bold tracking-wider mb-1">STOCK PRICE</div>
+                        <div className={`text-4xl font-black font-mono ${uiState.score > 0 ? 'text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.5)]' : 'text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]'}`}>
                             {formatMoney(uiState.score)}
                         </div>
                     </div>
-                    <div className="bg-black/40 backdrop-blur border border-white/10 rounded px-4 py-1 text-xs font-mono text-gray-300 flex items-center gap-2">
-                        <Globe size={12} /> {ticker}
+                    <div className="glass-panel rounded-lg px-4 py-2 text-xs font-mono text-gray-300 flex items-center gap-2 shadow-lg">
+                        <Globe size={12} className="text-cyan-400 animate-pulse" /> <span className="flex-1 truncate max-w-xs">{ticker}</span>
                     </div>
                 </div>
 
                 <div className="flex gap-2 pointer-events-auto">
-                    <button 
+                    <button
                         onClick={() => setCutaway(!cutaway)}
-                        className={`px-4 py-2 rounded backdrop-blur border text-sm font-bold transition-all ${cutaway ? 'bg-blue-600/80 border-blue-400' : 'bg-black/40 border-white/10'}`}
+                        className={`px-5 py-2 rounded-xl text-sm font-bold transition-all shadow-lg ${
+                            cutaway
+                                ? 'glass-panel-strong border-blue-400 text-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.4)]'
+                                : 'glass-panel border-white/10 text-gray-300 hover:border-white/20'
+                        }`}
                     >
-                        {cutaway ? 'EXTERIOR VIEW' : 'CUTAWAY VIEW'}
+                        {cutaway ? 'CUTAWAY VIEW' : 'EXTERIOR VIEW'}
                     </button>
-                    <div className="bg-black/40 backdrop-blur border border-white/10 rounded px-4 py-2 text-right">
-                        <div className="text-2xl font-bold font-mono">
+                    <div className="glass-panel rounded-xl px-5 py-3 text-right shadow-xl">
+                        <div className="text-2xl font-bold font-mono text-white drop-shadow-lg">
                             Day {uiState.dayCount} <span className="text-sm text-gray-400">{Math.floor(uiState.dayTime).toString().padStart(2, '0')}:{Math.floor((uiState.dayTime % 1) * 60).toString().padStart(2, '0')}</span>
                         </div>
-                        <div className="text-xs uppercase tracking-wider text-yellow-500 font-bold flex items-center justify-end gap-1">
+                        <div className="text-xs uppercase tracking-wider text-amber-400 font-bold flex items-center justify-end gap-1 drop-shadow-lg">
                              {uiState.weather}
                         </div>
                     </div>
@@ -411,27 +420,29 @@ const App: React.FC = () => {
             </div>
 
             {/* Event Log */}
-            <div className="absolute top-24 left-4 w-64 pointer-events-none z-10 flex flex-col gap-2">
+            <div className="absolute top-28 left-4 w-72 pointer-events-none z-10 flex flex-col gap-2">
                 {logs.map(log => (
-                    <div key={log.id} className={`bg-black/60 backdrop-blur p-2 rounded border-l-2 text-xs font-mono animate-in slide-in-from-left fade-in duration-300 ${
-                        log.type === 'danger' ? 'border-red-500 text-red-200' : 
-                        log.type === 'success' ? 'border-green-500 text-green-200' : 
-                        'border-blue-500 text-blue-200'
+                    <div key={log.id} className={`glass-panel p-3 rounded-lg border-l-4 text-xs font-mono animate-in slide-in-from-left fade-in duration-300 shadow-lg ${
+                        log.type === 'danger'
+                            ? 'border-red-500 text-red-200 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
+                            : log.type === 'success'
+                            ? 'border-green-500 text-green-200 shadow-[0_0_15px_rgba(34,197,94,0.3)]'
+                            : 'border-cyan-500 text-cyan-200 shadow-[0_0_15px_rgba(6,182,212,0.3)]'
                     }`}>
-                        <span className="opacity-50 mr-2">[{log.timestamp}]</span>
-                        {log.message}
+                        <span className="opacity-60 mr-2 text-[10px]">[{log.timestamp}]</span>
+                        <span className="font-semibold">{log.message}</span>
                     </div>
                 ))}
             </div>
 
             {/* Main UI Grid */}
             <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[95%] max-w-6xl z-20">
-                <div className="bg-black/80 backdrop-blur-xl border border-white/10 rounded-xl p-6 shadow-2xl grid grid-cols-12 gap-6">
-                    
+                <div className="glass-panel-strong rounded-2xl p-6 shadow-2xl grid grid-cols-12 gap-6">
+
                     {/* Reactor Panel */}
-                    <div className="col-span-3 bg-white/5 rounded-lg p-4 border border-white/5 flex flex-col gap-2">
-                        <h3 className="text-xs font-black text-blue-400 tracking-widest uppercase mb-2 flex items-center gap-2">
-                            <Activity size={14} /> Reactor Core
+                    <div className="col-span-3 glass-panel rounded-xl p-4 flex flex-col gap-2 shadow-lg border-l-2 border-cyan-500/50">
+                        <h3 className="text-xs font-black text-cyan-400 tracking-widest uppercase mb-2 flex items-center gap-2 drop-shadow-lg">
+                            <Activity size={14} className="animate-pulse" /> Reactor Core
                         </h3>
                         
                         <ProgressBar value={uiState.temp} max={MAX_TEMP} label="CORE TEMP" unit="°C" warning={uiState.temp > 2000} />
@@ -444,9 +455,9 @@ const App: React.FC = () => {
                     </div>
 
                     {/* Controls Panel */}
-                    <div className="col-span-3 bg-white/5 rounded-lg p-4 border border-white/5 flex flex-col">
-                         <h3 className="text-xs font-black text-blue-400 tracking-widest uppercase mb-4 flex items-center gap-2">
-                            <Zap size={14} /> Systems Control
+                    <div className="col-span-3 glass-panel rounded-xl p-4 flex flex-col shadow-lg border-l-2 border-blue-500/50">
+                         <h3 className="text-xs font-black text-blue-400 tracking-widest uppercase mb-4 flex items-center gap-2 drop-shadow-lg">
+                            <Zap size={14} className="animate-pulse" /> Systems Control
                         </h3>
 
                         <div className="mb-4">
@@ -476,19 +487,23 @@ const App: React.FC = () => {
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 mt-auto">
-                            <button 
+                            <button
                                 onClick={togglePump}
-                                className={`py-2 px-3 rounded font-bold text-xs transition-all ${uiState.pump ? 'bg-green-600 text-white shadow-[0_0_10px_rgba(22,163,74,0.4)]' : 'bg-gray-700 text-gray-400'}`}
+                                className={`py-2 px-3 rounded-lg font-bold text-xs transition-all ${
+                                    uiState.pump
+                                        ? 'bg-green-600 text-white btn-glow-green shadow-lg'
+                                        : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                                }`}
                             >
                                 PUMP: {uiState.pump ? 'ON' : 'OFF'}
                             </button>
-                            <button 
+                            <button
                                 onClick={() => {
                                     updateControl('rods', 100);
                                     updateControl('valve', 100);
                                     playSound('alarm');
                                 }}
-                                className="py-2 px-3 rounded font-bold text-xs bg-red-600 hover:bg-red-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.4)] active:scale-95 transition-transform"
+                                className="py-2 px-3 rounded-lg font-bold text-xs bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] hover:shadow-[0_0_25px_rgba(220,38,38,0.7)] active:scale-95 transition-all"
                             >
                                 SCRAM
                             </button>
@@ -496,9 +511,9 @@ const App: React.FC = () => {
                     </div>
 
                     {/* Grid Output */}
-                    <div className="col-span-3 bg-white/5 rounded-lg p-4 border border-white/5 flex flex-col">
-                        <h3 className="text-xs font-black text-blue-400 tracking-widest uppercase mb-2 flex items-center gap-2">
-                            <TrendingUp size={14} /> Grid Output
+                    <div className="col-span-3 glass-panel rounded-xl p-4 flex flex-col shadow-lg border-l-2 border-orange-500/50">
+                        <h3 className="text-xs font-black text-orange-400 tracking-widest uppercase mb-2 flex items-center gap-2 drop-shadow-lg">
+                            <TrendingUp size={14} className="animate-pulse" /> Grid Output
                         </h3>
                         
                         <ProgressBar value={uiState.power} max={MAX_POWER} label="OUTPUT" unit=" MW" color="bg-orange-500" marker={uiState.gridDemand} />
@@ -530,8 +545,8 @@ const App: React.FC = () => {
                     </div>
 
                     {/* CFO Panel */}
-                    <div className="col-span-3 bg-white/5 rounded-lg p-4 border border-white/5 flex flex-col">
-                        <div className="flex gap-1 mb-4 bg-black/30 p-1 rounded-lg">
+                    <div className="col-span-3 glass-panel rounded-xl p-4 flex flex-col shadow-lg border-l-2 border-purple-500/50">
+                        <div className="flex gap-1 mb-4 bg-black/40 p-1 rounded-lg shadow-inner">
                             {['market', 'bank', 'shop'].map(tab => (
                                 <button 
                                     key={tab}
