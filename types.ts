@@ -22,16 +22,18 @@ export interface GameState {
     gridDemand: number;
     
     // Financials
-    score: number; // Stock Price basically
-    cash: number; // Liquid cash for upgrades
+    score: number; // Stock Price
+    cash: number; // Liquid cash
     loan: number;
     creditScore: number;
     offshore: number;
     auditRisk: number;
+    politicalCapital: number; // New resource
     
     // Simulation
     dayTime: number;
     dayCount: number;
+    date: string; // Tracking real calendar date
     weather: 'sunny' | 'cloudy' | 'rainy' | 'snowy' | 'thunderstorm';
     gameOver: boolean;
     failReason: string | null;
@@ -56,4 +58,13 @@ export interface LogEvent {
 export interface StockPoint {
     time: string;
     price: number;
+}
+
+export interface HistoricEvent {
+    month: number; // 1-12
+    year: number; // 2000 or 2001
+    title: string;
+    description: string;
+    type: 'info' | 'warning' | 'danger';
+    effect?: (state: GameState) => void;
 }

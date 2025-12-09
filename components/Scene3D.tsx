@@ -5,7 +5,6 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { GameState } from '../types';
-import { MAX_TEMP } from '../constants';
 
 interface Scene3DProps {
     gameState: React.MutableRefObject<GameState>;
@@ -20,9 +19,7 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
     const composerRef = useRef<EffectComposer | null>(null);
     const materialsRef = useRef<any>({});
     const meshesRef = useRef<THREE.InstancedMesh[]>([]);
-    const weatherParticlesRef = useRef<THREE.Mesh[]>([]);
     const steamParticlesRef = useRef<any[]>([]);
-    const carsRef = useRef<any[]>([]);
     
     // Colors
     const SKY_COLOR_DAY = new THREE.Color(0x87CEEB);
@@ -53,7 +50,7 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
         controls.dampingFactor = 0.05;
         controls.maxPolarAngle = Math.PI / 2 - 0.02;
         controls.minDistance = 10;
-        controls.maxDistance = 180;
+        controls.maxDistance = 250;
         controls.target.set(0, 5, 0);
 
         // Post Processing
@@ -82,31 +79,20 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
         materialsRef.current = {
             grass: new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 1, metalness: 0 }),
             dirt: new THREE.MeshStandardMaterial({ color: 0x795548, roughness: 1 }),
-            wood: new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 1 }),
-            leaves: new THREE.MeshStandardMaterial({ color: 0x388e3c, roughness: 1 }),
             concrete: new THREE.MeshStandardMaterial({ color: 0x90a4ae, roughness: 0.8 }),
             darkConcrete: new THREE.MeshStandardMaterial({ color: 0x546e7a, roughness: 0.8 }),
             water: new THREE.MeshStandardMaterial({ color: 0x29b6f6, transparent: true, opacity: 0.7, roughness: 0.2, metalness: 0.1 }),
             steel: new THREE.MeshStandardMaterial({ color: 0xb0bec5, roughness: 0.3, metalness: 0.8 }),
+            glass: new THREE.MeshStandardMaterial({ color: 0x88ccff, roughness: 0.0, metalness: 0.9, transparent: true, opacity: 0.8 }),
             warning: new THREE.MeshStandardMaterial({ color: 0xffc107 }),
             steam: new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 }),
             glow: new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 2.0 }),
             coreBlue: new THREE.MeshStandardMaterial({ color: 0x0088ff, emissive: 0x0088ff, emissiveIntensity: 3.0 }),
             redControl: new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.5 }),
-            road: new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9 }),
-            copper: new THREE.MeshStandardMaterial({ color: 0xc27ba0, metalness: 0.6 }),
             transformer: new THREE.MeshStandardMaterial({ color: 0x263238 }),
             fire: new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0xff5500, emissiveIntensity: 4.0 }),
-            building_wall: new THREE.MeshStandardMaterial({ color: 0x607d8b, roughness: 0.6 }),
-            building_window_off: new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1 }),
             building_window_on: new THREE.MeshStandardMaterial({ color: 0xffeb3b, emissive: 0xffaa00, emissiveIntensity: 2.0 }),
             street_light: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.5 }),
-            car_body: new THREE.MeshStandardMaterial({ color: 0xe74c3c }),
-            car_light_front: new THREE.MeshStandardMaterial({ color: 0xffffcc, emissive: 0xffffcc, emissiveIntensity: 2.0 }),
-            car_light_back: new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 1.0 }),
-            fence: new THREE.MeshStandardMaterial({ color: 0x9e9e9e, roughness: 0.5 }),
-            rain: new THREE.MeshBasicMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.6 }),
-            snow: new THREE.MeshBasicMaterial({ color: 0xffffff }),
             enron_logo: new THREE.MeshStandardMaterial({ color: 0xeeeeee, emissive: 0x2980b9, emissiveIntensity: 2.0 })
         };
 
@@ -149,15 +135,6 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
                 sunInt = t * 1.2; ambInt = 0.1 + t * 0.5; cityLights = 1.0 - t; 
             }
 
-            // Weather
-            if (state.weather === 'rainy') { bgColor.multiplyScalar(0.7); sunInt *= 0.6; } 
-            else if (state.weather === 'snowy') { bgColor.lerp(new THREE.Color(0xddddff), 0.3); sunInt *= 0.8; } 
-            else if (state.weather === 'cloudy') { bgColor.lerp(new THREE.Color(0x888888), 0.4); sunInt *= 0.5; } 
-            else if (state.weather === 'thunderstorm') { 
-                bgColor.multiplyScalar(0.4); sunInt *= 0.3; 
-                if (Math.random() < 0.05) { scene.background = new THREE.Color(0xffffff); sunInt = 2.0; setTimeout(() => { if(sceneRef.current) sceneRef.current.background = bgColor; }, 50); }
-            }
-
             if(sceneRef.current) sceneRef.current.background = bgColor;
             sunLight.intensity = sunInt;
             ambientLight.intensity = ambInt;
@@ -165,7 +142,7 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
             materialsRef.current.building_window_on.emissiveIntensity = cityLights * 3.0;
             materialsRef.current.street_light.emissiveIntensity = cityLights * 2.0;
 
-            // Core Glow Logic
+            // Core Glow
             const temp = state.temp;
             const color = new THREE.Color(); 
             const emissive = new THREE.Color();
@@ -173,33 +150,21 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
                 const t = (temp - 300) / 700; 
                 color.setHSL(0.6 - t*0.3, 1.0, 0.5); 
                 emissive.setHSL(0.6 - t*0.3, 1.0, 0.5 + t); 
-            } else if (temp < 2000) { 
+            } else { 
                 const t = (temp - 1000) / 1000; 
                 color.setHSL(0.3 - t*0.25, 1.0, 0.5); 
                 emissive.setHSL(0.3 - t*0.25, 1.0, 1.5 + t); 
-            } else { 
-                const t = (temp - 2000) / 1000; 
-                color.setHSL(0.05 - t*0.05, 1.0, 0.5); 
-                emissive.setHSL(0.05 - t*0.05, 1.0, 3.0 + t*5.0); 
             }
             materialsRef.current.glow.color.copy(color);
             materialsRef.current.glow.emissive.copy(emissive);
 
-            // Update Particles
+            // Particles
             steamParticlesRef.current.forEach(p => {
                 p.mesh.position.y += p.speed; p.time += 0.02;
-                p.mesh.position.x = p.initialX + Math.sin(p.time) * (p.isFire ? 0.5 : 1.5);
-                p.mesh.position.z = p.initialZ + Math.cos(p.time) * (p.isFire ? 0.5 : 1.5);
-                if(p.mesh.position.y > (p.isFire ? 15 : 45)) { p.mesh.position.y = p.isFire ? 2 : 26; }
+                p.mesh.position.x = p.initialX + Math.sin(p.time) * 1.5;
+                p.mesh.position.z = p.initialZ + Math.cos(p.time) * 1.5;
+                if(p.mesh.position.y > 45) { p.mesh.position.y = 26; }
             });
-
-            // Camera Shake on high temp
-            if (temp > 2000) {
-                const shake = (temp - 2000) / 2000;
-                camera.position.x += (Math.random() - 0.5) * shake;
-                camera.position.y += (Math.random() - 0.5) * shake;
-                camera.position.z += (Math.random() - 0.5) * shake;
-            }
 
             controls.update();
             composer.render();
@@ -225,24 +190,19 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
         };
     }, []);
 
-    // Rebuild World on Cutaway Toggle
+    // Rebuild World on Cutaway Toggle or Significant Growth
     useEffect(() => {
         if (!sceneRef.current) return;
         const scene = sceneRef.current;
         
-        // Clear old meshes
-        meshesRef.current.forEach(mesh => {
-            scene.remove(mesh);
-            mesh.geometry.dispose();
-        });
+        meshesRef.current.forEach(mesh => { scene.remove(mesh); mesh.geometry.dispose(); });
         meshesRef.current = [];
 
         const voxelData: any[] = [];
-        const addVoxel = (type: string, x: number, y: number, z: number, group='default') => {
-            voxelData.push({ type, x, y, z, group });
+        const addVoxel = (type: string, x: number, y: number, z: number) => {
+            voxelData.push({ type, x, y, z });
         };
 
-        // --- Generators ---
         const generateReactorDome = (cx: number, cz: number) => {
             const radius = 10; const height = 16;
             for(let y=0; y<8; y++) {
@@ -250,28 +210,28 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
                     for(let z=-2; z<=2; z++) {
                         if(x*x + z*z <= 4.5) {
                             const isRod = (x+z)%2 !== 0;
-                             if (y > 1 && y < 6 && isRod) addVoxel('glow', cx+x, y+1, cz+z, 'core');
-                             else if (y >= 6 && y < 8 && isRod) addVoxel('redControl', cx+x, y+1, cz+z, 'rods');
-                             else addVoxel('steel', cx+x, y+1, cz+z, 'core');
+                             if (y > 1 && y < 6 && isRod) addVoxel('glow', cx+x, y+1, cz+z);
+                             else if (y >= 6 && y < 8 && isRod) addVoxel('redControl', cx+x, y+1, cz+z);
+                             else addVoxel('steel', cx+x, y+1, cz+z);
                         }
                     }
                 }
             }
-            for(let x=-1; x<=1; x++) for(let z=-1; z<=1; z++) addVoxel('coreBlue', cx+x, 2, cz+z, 'core');
+            for(let x=-1; x<=1; x++) for(let z=-1; z<=1; z++) addVoxel('coreBlue', cx+x, 2, cz+z);
             for(let y=0; y<height; y++) {
                 for(let x=-radius; x<=radius; x++) {
                     for(let z=-radius; z<=radius; z++) {
                         if (cutaway && z > 0) continue;
                         const dist = Math.sqrt(x*x + z*z);
-                        if (y < 10) { if(dist > radius - 1.5 && dist <= radius) addVoxel('concrete', cx+x, y+1, cz+z, 'dome'); } 
+                        if (y < 10) { if(dist > radius - 1.5 && dist <= radius) addVoxel('concrete', cx+x, y+1, cz+z); } 
                         else { 
                             const domeY = y - 10; const domeRad = Math.sqrt(radius*radius - domeY*domeY); 
-                            if (dist > domeRad - 1.5 && dist <= domeRad) addVoxel('concrete', cx+x, y+1, cz+z, 'dome'); 
+                            if (dist > domeRad - 1.5 && dist <= domeRad) addVoxel('concrete', cx+x, y+1, cz+z); 
                         }
                     }
                 }
             }
-            // Enron Text
+             // Enron Text
              const fontMap: Record<string, number[][]> = {
                 'E': [[1,1,1],[1,0,0],[1,1,1],[1,0,0],[1,1,1]],
                 'N': [[1,0,1],[1,1,1],[1,1,1],[1,1,1],[1,0,1]],
@@ -294,9 +254,25 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
             }
         }
 
+        const generateSkyscraper = (cx: number, cz: number, h: number, w: number) => {
+            for(let y=0; y<h; y++) {
+                for(let x=-w; x<=w; x++) {
+                    for(let z=-w; z<=w; z++) {
+                         if(x===-w || x===w || z===-w || z===w) {
+                            const isWindow = (y % 3 !== 0) && (x+z)%2 !== 0;
+                            addVoxel(isWindow ? 'glass' : 'steel', cx+x, y+1, cz+z);
+                            if (isWindow && Math.random() > 0.6) addVoxel('building_window_on', cx+x, y+1, cz+z);
+                         } else if (y===h-1) {
+                            addVoxel('concrete', cx+x, y+1, cz+z);
+                         }
+                    }
+                }
+            }
+        };
+
         const generateCoolingTower = (cx: number, cz: number) => {
             const height = 25; const baseRad = 8;
-            for(let x=-baseRad+1; x<baseRad; x++){ for(let z=-baseRad+1; z<baseRad; z++){ if(Math.sqrt(x*x+z*z) < baseRad-1) addVoxel('water', cx+x, 1, cz+z, 'tower'); } }
+            for(let x=-baseRad+1; x<baseRad; x++){ for(let z=-baseRad+1; z<baseRad; z++){ if(Math.sqrt(x*x+z*z) < baseRad-1) addVoxel('water', cx+x, 1, cz+z); } }
             const topRad = 5; const midRad = 4;
             for(let y=0; y<height; y++) {
                 let t = y / height; let r = Math.round(baseRad * (1-t)*(1-t) + midRad * 2 * t * (1-t) + topRad * t * t);
@@ -305,38 +281,58 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
                         if (cutaway && z > 0) continue;
                         const dist = Math.sqrt(x*x + z*z);
                         if (dist >= r - 1 && dist <= r) {
-                             let type = 'concrete'; if(y > height - 3 && (x+z)%2===0) type = 'warning'; addVoxel(type, cx+x, y+1, cz+z, 'tower');
+                             let type = 'concrete'; if(y > height - 3 && (x+z)%2===0) type = 'warning'; addVoxel(type, cx+x, y+1, cz+z);
                         }
                     }
                 }
             }
         }
 
-        const generateEnvironment = () => {
-            // Terrain
-            for(let x=-50; x<50; x+=1) {
-                for(let z=-50; z<50; z+=1) {
-                    const dist = Math.sqrt(x*x + z*z);
-                    if (dist < 35) { addVoxel('concrete', x, 0, z); } 
-                    else { addVoxel(Math.random()>0.8 ? 'dirt' : 'grass', x, 0, z); }
-                }
-            }
-            // Pipes
-            for(let x=8; x<18; x++) addVoxel('darkConcrete', x, 4, 0);
-            
-            // Substation
-            const cx = 28, cz = -15;
-            for(let x=0; x<6; x++) for(let z=0; z<8; z++) addVoxel('concrete', cx+x, 1, cz+z);
-            for(let i=0; i<3; i++) { 
-                addVoxel('transformer', cx+1, 2, cz+1 + i*2); 
-                addVoxel('copper', cx+1, 3, cz+1 + i*2); 
-            }
-        };
-
-        generateEnvironment();
+        // Dynamic City Growth based on Stock Price
+        const score = gameState.current.score;
+        
         generateReactorDome(0, 0);
         generateCoolingTower(-20, 15);
         generateCoolingTower(-20, -15);
+        
+        // Initial Office (Small)
+        generateSkyscraper(25, 15, 12, 4);
+
+        // Expansion 1: Enron South
+        if (score > 60) {
+            generateSkyscraper(25, -15, 20, 5);
+        }
+        // Expansion 2: The New Tower
+        if (score > 80) {
+             generateSkyscraper(40, 0, 35, 6);
+             // Skybridge
+             for(let x=30; x<34; x++) addVoxel('glass', x, 15, 0);
+        }
+        // Expansion 3: Mega Corp
+        if (score > 100) {
+            generateSkyscraper(40, 20, 25, 4);
+            generateSkyscraper(40, -20, 25, 4);
+        }
+        // Expansion 4: The Sprawl
+        if (score > 150) {
+            generateSkyscraper(60, 10, 30, 5);
+            generateSkyscraper(60, -10, 30, 5);
+            generateSkyscraper(60, 40, 15, 4);
+        }
+        // Expansion 5: Dominance
+        if (score > 200) {
+            generateSkyscraper(50, 50, 40, 6);
+            generateSkyscraper(50, -50, 40, 6);
+        }
+
+        // Terrain
+        for(let x=-60; x<60; x+=1) {
+            for(let z=-60; z<60; z+=1) {
+                const dist = Math.sqrt(x*x + z*z);
+                if (dist < 35) addVoxel('concrete', x, 0, z);
+                else addVoxel(Math.random()>0.8 ? 'dirt' : 'grass', x, 0, z);
+            }
+        }
 
         // Build Meshes
         const instances: Record<string, {count: number, data: any[]}> = {}; 
@@ -356,7 +352,6 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
             const mesh = new THREE.InstancedMesh(geometry, mat, entry.count);
             mesh.castShadow = true; 
             mesh.receiveShadow = true;
-            
             for(let i=0; i<entry.count; i++) {
                 const v = entry.data[i]; 
                 matrix.setPosition(v.x, v.y, v.z); 
@@ -367,7 +362,7 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
             meshesRef.current.push(mesh);
         });
 
-    }, [cutaway]);
+    }, [cutaway, gameState.current.score]); // Re-render when score changes significantly
 
     return <div ref={containerRef} className="absolute inset-0 z-0 pointer-events-none" />;
 };

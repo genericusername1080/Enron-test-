@@ -37,9 +37,11 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ value, max = 100, color = 'bg
             )}
             <div className="h-2 bg-black/60 rounded relative overflow-hidden border border-white/10">
                 <div 
-                    className={`h-full transition-all duration-300 ease-out ${barColor}`} 
+                    className={`h-full transition-all duration-300 ease-out relative overflow-hidden ${barColor}`} 
                     style={{ width: `${percentage}%` }}
-                ></div>
+                >
+                    <div className="animate-sheen pointer-events-none"></div>
+                </div>
                 {marker !== undefined && (
                     <div 
                         className="absolute top-0 bottom-0 w-0.5 bg-white z-10 shadow-[0_0_4px_white]"
