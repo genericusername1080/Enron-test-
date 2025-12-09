@@ -685,6 +685,7 @@ const App: React.FC = () => {
                                         { key: 'SHRED', label: 'Shred Docs', cost: PRICES.SHRED },
                                         { key: 'REFUEL', label: 'Refuel Core', cost: PRICES.REFUEL },
                                         { key: 'FIX_PUMP', label: 'Fix Pump', cost: PRICES.FIX_PUMP },
+                                        { key: 'FIX_TURB', label: 'Fix Turbine', cost: PRICES.FIX_TURB },
                                         { key: 'PUMP_UPGRADE_BASE', label: 'Upg. Pump', cost: PRICES.PUMP_UPGRADE_BASE * uiState.pumpLevel },
                                         { key: 'AUTOSCRAM', label: 'Auto-SCRAM', cost: PRICES.AUTOSCRAM, disabled: uiState.hasAutoScram }
                                     ].map((item: any) => {
