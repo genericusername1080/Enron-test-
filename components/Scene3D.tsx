@@ -23,6 +23,12 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
     const weatherParticlesRef = useRef<THREE.Mesh[]>([]);
     const steamParticlesRef = useRef<any[]>([]);
     const carsRef = useRef<any[]>([]);
+
+    // Demolition Physics
+    const debrisRef = useRef<any[]>([]);
+    const explosionParticlesRef = useRef<any[]>([]);
+    const demolitionTriggeredRef = useRef(false);
+    const demolitionStartTimeRef = useRef(0);
     
     // Colors
     const SKY_COLOR_DAY = new THREE.Color(0x87CEEB);
@@ -272,13 +278,151 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
             const createSteam = (x: number, z: number, startY: number, isFire=false) => {
                 const mat = isFire ? materialsRef.current.fire : materialsRef.current.steam;
                 const mesh = new THREE.Mesh(steamGeo, mat);
-                mesh.position.set(x, startY, z); 
+                mesh.position.set(x, startY, z);
                 scene.add(mesh);
                 return { mesh, speed: (0.05 + Math.random() * 0.05) * (isFire ? 2 : 1), initialX: x, initialZ: z, time: Math.random() * 10, isFire };
             };
             steamParticlesRef.current.push(createSteam(-20 + (Math.random()-0.5)*4, 15 + (Math.random()-0.5)*4, 26));
             steamParticlesRef.current.push(createSteam(-20 + (Math.random()-0.5)*4, -15 + (Math.random()-0.5)*4, 26));
         }
+
+        // Demolition Physics System
+        const createDebris = (x: number, y: number, z: number, material: THREE.Material, size = 1) => {
+            const geometry = new THREE.BoxGeometry(size, size, size);
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(x, y, z);
+            mesh.castShadow = true;
+            scene.add(mesh);
+
+            return {
+                mesh,
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 15,
+                    Math.random() * 20 + 10,
+                    (Math.random() - 0.5) * 15
+                ),
+                angularVelocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.3
+                ),
+                lifetime: 0
+            };
+        };
+
+        const createExplosion = (x: number, y: number, z: number, intensity: number) => {
+            const particleCount = Math.floor(intensity * 30);
+
+            for (let i = 0; i < particleCount; i++) {
+                const size = 0.5 + Math.random() * 1.5;
+                const geometry = new THREE.SphereGeometry(size, 4, 4);
+                const material = new THREE.MeshBasicMaterial({
+                    color: new THREE.Color().setHSL(Math.random() * 0.1, 1.0, 0.5 + Math.random() * 0.3),
+                    transparent: true,
+                    opacity: 1.0
+                });
+                const mesh = new THREE.Mesh(geometry, material);
+
+                const angle = Math.random() * Math.PI * 2;
+                const elevation = Math.random() * Math.PI - Math.PI / 2;
+                const speed = 15 + Math.random() * 25;
+
+                mesh.position.set(x, y, z);
+                scene.add(mesh);
+
+                explosionParticlesRef.current.push({
+                    mesh,
+                    velocity: new THREE.Vector3(
+                        Math.cos(angle) * Math.cos(elevation) * speed,
+                        Math.sin(elevation) * speed + 20,
+                        Math.sin(angle) * Math.cos(elevation) * speed
+                    ),
+                    lifetime: 0,
+                    maxLifetime: 2 + Math.random() * 2
+                });
+            }
+        };
+
+        const triggerDemolition = (failureType: string) => {
+            if (demolitionTriggeredRef.current) return;
+            demolitionTriggeredRef.current = true;
+            demolitionStartTimeRef.current = Date.now();
+
+            // Determine epicenter based on failure type
+            let epicenter = new THREE.Vector3(0, 8, 0); // Default: reactor core
+            let explosionIntensity = 3;
+
+            if (failureType === 'CORE MELTDOWN') {
+                epicenter.set(0, 8, 0);
+                explosionIntensity = 5;
+                // Create massive explosion at core
+                createExplosion(0, 8, 0, explosionIntensity);
+                setTimeout(() => createExplosion(0, 12, 0, explosionIntensity * 0.8), 200);
+                setTimeout(() => createExplosion(0, 5, 0, explosionIntensity * 0.6), 400);
+            } else if (failureType === 'PRESSURE EXPLOSION') {
+                // Multiple explosions at cooling towers
+                epicenter.set(-20, 15, 15);
+                createExplosion(-20, 15, 15, 4);
+                setTimeout(() => createExplosion(-20, 15, -15, 4), 150);
+                setTimeout(() => createExplosion(0, 8, 0, 3), 300);
+            } else {
+                createExplosion(0, 8, 0, 3);
+            }
+
+            // Convert instanced meshes to individual debris pieces
+            meshesRef.current.forEach(instancedMesh => {
+                const count = instancedMesh.count;
+                const matrix = new THREE.Matrix4();
+                const position = new THREE.Vector3();
+
+                // Only convert a subset for performance (every 3rd voxel)
+                for (let i = 0; i < count; i += 3) {
+                    instancedMesh.getMatrixAt(i, matrix);
+                    position.setFromMatrixPosition(matrix);
+
+                    const distance = position.distanceTo(epicenter);
+
+                    // Only create debris for voxels near epicenter (within 30 units)
+                    if (distance < 30) {
+                        const debris = createDebris(
+                            position.x,
+                            position.y,
+                            position.z,
+                            instancedMesh.material as THREE.Material,
+                            0.8 + Math.random() * 0.4
+                        );
+
+                        // Apply explosive force from epicenter
+                        const direction = position.clone().sub(epicenter).normalize();
+                        const force = Math.max(0, 30 - distance) / 30; // Stronger force closer to epicenter
+                        debris.velocity.add(direction.multiplyScalar(force * 30));
+                        debris.velocity.y += force * 20;
+
+                        debrisRef.current.push(debris);
+                    }
+                }
+            });
+
+            // Hide original instanced meshes
+            meshesRef.current.forEach(mesh => {
+                mesh.visible = false;
+            });
+
+            // Shake camera dramatically
+            if (cameraRef.current) {
+                const shakeCamera = () => {
+                    const elapsed = (Date.now() - demolitionStartTimeRef.current) / 1000;
+                    if (elapsed < 3) {
+                        const intensity = Math.max(0, 3 - elapsed) * 8;
+                        cameraRef.current!.position.x += (Math.random() - 0.5) * intensity;
+                        cameraRef.current!.position.y += (Math.random() - 0.5) * intensity;
+                        cameraRef.current!.position.z += (Math.random() - 0.5) * intensity;
+                        setTimeout(shakeCamera, 50);
+                    }
+                };
+                shakeCamera();
+            }
+        };
 
         // Animation Loop
         let animationId: number;
@@ -410,13 +554,97 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
                 }
             });
 
-            // Camera Shake on high temp
-            if (temp > 2000) {
+            // Camera Shake on high temp (only if demolition hasn't been triggered)
+            if (temp > 2000 && !demolitionTriggeredRef.current) {
                 const shake = (temp - 2000) / 2000;
                 camera.position.x += (Math.random() - 0.5) * shake;
                 camera.position.y += (Math.random() - 0.5) * shake;
                 camera.position.z += (Math.random() - 0.5) * shake;
             }
+
+            // Trigger demolition on game over
+            if (state.gameOver && !demolitionTriggeredRef.current && state.failReason) {
+                triggerDemolition(state.failReason);
+            }
+
+            // Update Demolition Physics
+            const deltaTime = 0.016; // ~60fps
+            const gravity = -30;
+
+            // Update debris particles
+            debrisRef.current = debrisRef.current.filter(debris => {
+                debris.lifetime += deltaTime;
+
+                // Apply gravity
+                debris.velocity.y += gravity * deltaTime;
+
+                // Apply air resistance
+                debris.velocity.multiplyScalar(0.98);
+
+                // Update position
+                debris.mesh.position.add(debris.velocity.clone().multiplyScalar(deltaTime));
+
+                // Update rotation
+                debris.mesh.rotation.x += debris.angularVelocity.x;
+                debris.mesh.rotation.y += debris.angularVelocity.y;
+                debris.mesh.rotation.z += debris.angularVelocity.z;
+
+                // Ground collision
+                if (debris.mesh.position.y < 0) {
+                    debris.mesh.position.y = 0;
+                    debris.velocity.y *= -0.4; // Bounce with energy loss
+                    debris.velocity.x *= 0.7;
+                    debris.velocity.z *= 0.7;
+                    debris.angularVelocity.multiplyScalar(0.8);
+
+                    // Stop if moving too slowly
+                    if (Math.abs(debris.velocity.y) < 0.5) {
+                        debris.velocity.set(0, 0, 0);
+                    }
+                }
+
+                // Remove if too old or fallen off the world
+                if (debris.lifetime > 15 || debris.mesh.position.y < -50) {
+                    scene.remove(debris.mesh);
+                    debris.mesh.geometry.dispose();
+                    return false;
+                }
+
+                return true;
+            });
+
+            // Update explosion particles
+            explosionParticlesRef.current = explosionParticlesRef.current.filter(particle => {
+                particle.lifetime += deltaTime;
+
+                // Apply gravity
+                particle.velocity.y += gravity * deltaTime * 0.5;
+
+                // Update position
+                particle.mesh.position.add(particle.velocity.clone().multiplyScalar(deltaTime));
+
+                // Fade out based on lifetime
+                const lifeRatio = particle.lifetime / particle.maxLifetime;
+                if (particle.mesh.material && 'opacity' in particle.mesh.material) {
+                    particle.mesh.material.opacity = Math.max(0, 1 - lifeRatio);
+                }
+
+                // Scale down as it fades
+                const scale = 1 + lifeRatio * 2;
+                particle.mesh.scale.set(scale, scale, scale);
+
+                // Remove when expired
+                if (particle.lifetime > particle.maxLifetime) {
+                    scene.remove(particle.mesh);
+                    particle.mesh.geometry.dispose();
+                    if (particle.mesh.material) {
+                        (particle.mesh.material as THREE.Material).dispose();
+                    }
+                    return false;
+                }
+
+                return true;
+            });
 
             controls.update();
             composer.render();
@@ -439,6 +667,22 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
             }
             renderer.dispose();
             steamParticlesRef.current = [];
+
+            // Cleanup demolition objects
+            debrisRef.current.forEach(debris => {
+                scene.remove(debris.mesh);
+                debris.mesh.geometry.dispose();
+            });
+            debrisRef.current = [];
+
+            explosionParticlesRef.current.forEach(particle => {
+                scene.remove(particle.mesh);
+                particle.mesh.geometry.dispose();
+                if (particle.mesh.material) {
+                    (particle.mesh.material as THREE.Material).dispose();
+                }
+            });
+            explosionParticlesRef.current = [];
         };
     }, []);
 
@@ -568,19 +812,22 @@ const Scene3D: React.FC<Scene3DProps> = ({ gameState, cutaway }) => {
         const colorWhite = new THREE.Color(0xffffff);
 
         Object.keys(instances).forEach(key => {
-            const entry = instances[key]; 
+            const entry = instances[key];
             const mat = materialsRef.current[key] || materialsRef.current.concrete;
             const mesh = new THREE.InstancedMesh(geometry, mat, entry.count);
-            mesh.castShadow = true; 
+            mesh.castShadow = true;
             mesh.receiveShadow = true;
-            
+
+            // Hide mesh if demolition has been triggered
+            mesh.visible = !demolitionTriggeredRef.current;
+
             for(let i=0; i<entry.count; i++) {
-                const v = entry.data[i]; 
-                matrix.setPosition(v.x, v.y, v.z); 
-                mesh.setMatrixAt(i, matrix); 
-                mesh.setColorAt(i, colorWhite); 
+                const v = entry.data[i];
+                matrix.setPosition(v.x, v.y, v.z);
+                mesh.setMatrixAt(i, matrix);
+                mesh.setColorAt(i, colorWhite);
             }
-            scene.add(mesh); 
+            scene.add(mesh);
             meshesRef.current.push(mesh);
         });
 
