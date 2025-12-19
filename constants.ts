@@ -1,5 +1,5 @@
 
-import { GameState, HistoricEvent } from "./types";
+import { GameState, HistoricEvent, Chapter } from "./types";
 
 export const MAX_TEMP = 3000;
 export const MAX_PRES = 2000;
@@ -13,15 +13,51 @@ export const PRICES = {
     SHRED: 3000,
     LOBBY: 5000,
     REFUEL: 1500,
-    FIX_PUMP: 600,
-    FIX_TURB: 600,
+    FIX_PUMP: 800,
+    FIX_TURB: 1200,
+    FIX_CONDENSER: 1000,
     PUMP_UPGRADE_BASE: 800,
-    AUTOSCRAM: 1200,
+    AUTOSCRAM: 2500,
     CAMPAIGN_DONATION: 2000,
     CREATE_SPE: 1000
 };
 
 export const START_DATE = new Date("2000-01-01");
+
+export const CHAPTERS: Chapter[] = [
+    {
+        id: 0,
+        title: "Chapter 1: The Vision",
+        year: "Early 2000",
+        description: "Establish Enron Energy Services. Keep the lights on and the stock moving up.",
+        winCondition: (s) => s.score > 60 && s.cash > 8000,
+        modifiers: { demandScale: 1.0, volatility: 0.5, regulatorAggression: 0.2 }
+    },
+    {
+        id: 1,
+        title: "Chapter 2: The California Crisis",
+        year: "Late 2000",
+        description: "Demand is skyrocketing. Create artificial shortages (brownouts) to spike prices.",
+        winCondition: (s) => s.score > 100 && s.offshore > 5000,
+        modifiers: { demandScale: 1.5, volatility: 1.2, regulatorAggression: 0.4 }
+    },
+    {
+        id: 2,
+        title: "Chapter 3: Creative Accounting",
+        year: "2001",
+        description: "The debt is piling up. Use SPEs to hide losses. Avoid the SEC.",
+        winCondition: (s) => s.score > 150 && s.spes.length >= 3,
+        modifiers: { demandScale: 0.8, volatility: 2.0, regulatorAggression: 0.9 }
+    },
+    {
+        id: 3,
+        title: "Chapter 4: The Collapse",
+        year: "Late 2001",
+        description: "It's all over. Extract as much personal wealth as possible before the indictment.",
+        winCondition: (s) => s.offshore > 50000, // Escape plan
+        modifiers: { demandScale: 0.5, volatility: 3.0, regulatorAggression: 1.5 }
+    }
+];
 
 export interface WeatherPattern {
     month: number;
@@ -116,12 +152,15 @@ export const INITIAL_STATE: GameState = {
     fuel: 100,
     pumpHealth: 100,
     turbineHealth: 100,
+    condenserHealth: 100,
+    gridHz: 60,
+    brownoutActive: false,
     xenon: 0,
     flowRate: 100,
     reactivity: 0,
     meltdownProgress: 0,
     power: 0,
-    gridDemand: 500,
+    gridDemand: 600,
     score: 40, 
     cash: 5000, 
     loan: 0,
@@ -140,6 +179,9 @@ export const INITIAL_STATE: GameState = {
     pumpLevel: 1,
     hasAutoScram: false,
     lobbyingLevel: 0,
+    lobbyingShieldTime: 0,
     artificialShortage: false,
-    difficulty: 1
+    difficulty: 1,
+    currentChapter: 0,
+    lastDividendWeek: 0
 };

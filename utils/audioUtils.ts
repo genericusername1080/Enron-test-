@@ -3,6 +3,11 @@ let audioCtx: AudioContext | null = null;
 let ambienceOsc: OscillatorNode | null = null;
 let ambienceGain: GainNode | null = null;
 
+// Dynamic Reactor Hum
+let humOsc: OscillatorNode | null = null;
+let humGain: GainNode | null = null;
+let nextGeigerClickTime = 0;
+
 export const initAudio = () => {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -15,49 +20,103 @@ export const initAudio = () => {
 export const startAmbience = () => {
     if (!audioCtx) initAudio();
     if (!audioCtx) return;
-    if (ambienceOsc) return; 
 
-    // Create a dark industrial hum (Drone)
-    ambienceOsc = audioCtx.createOscillator();
-    ambienceGain = audioCtx.createGain();
-    
-    // Use a low sawtooth for texture
-    ambienceOsc.type = 'sawtooth';
-    ambienceOsc.frequency.setValueAtTime(40, audioCtx.currentTime); 
-    
-    // Lowpass filter to muffle it into a background rumble
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(120, audioCtx.currentTime);
-    filter.Q.value = 1;
+    // 1. Dark Industrial Drone (Background)
+    if (!ambienceOsc) {
+        ambienceOsc = audioCtx.createOscillator();
+        ambienceGain = audioCtx.createGain();
+        
+        ambienceOsc.type = 'sawtooth';
+        ambienceOsc.frequency.setValueAtTime(40, audioCtx.currentTime); 
+        
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(120, audioCtx.currentTime);
+        filter.Q.value = 1;
 
-    // LFO to modulate the filter slightly for "breathing" reactor sound
-    const lfo = audioCtx.createOscillator();
-    lfo.type = 'sine';
-    lfo.frequency.value = 0.1; // Slow cycle
-    const lfoGain = audioCtx.createGain();
-    lfoGain.gain.value = 50;
-    lfo.connect(lfoGain);
-    lfoGain.connect(filter.frequency);
-    lfo.start();
+        const lfo = audioCtx.createOscillator();
+        lfo.type = 'sine';
+        lfo.frequency.value = 0.1;
+        const lfoGain = audioCtx.createGain();
+        lfoGain.gain.value = 50;
+        lfo.connect(lfoGain);
+        lfoGain.connect(filter.frequency);
+        lfo.start();
 
-    ambienceGain.gain.setValueAtTime(0.03, audioCtx.currentTime);
+        ambienceGain.gain.setValueAtTime(0.03, audioCtx.currentTime);
 
-    ambienceOsc.connect(filter);
-    filter.connect(ambienceGain);
-    ambienceGain.connect(audioCtx.destination);
-    
-    ambienceOsc.start();
+        ambienceOsc.connect(filter);
+        filter.connect(ambienceGain);
+        ambienceGain.connect(audioCtx.destination);
+        ambienceOsc.start();
+    }
+
+    // 2. Variable Reactor Hum (Foreground)
+    if (!humOsc) {
+        humOsc = audioCtx.createOscillator();
+        humGain = audioCtx.createGain();
+        
+        humOsc.type = 'sine'; // Pure sine for "electric" feel
+        humOsc.frequency.setValueAtTime(60, audioCtx.currentTime); 
+        humGain.gain.setValueAtTime(0, audioCtx.currentTime); // Start silent
+        
+        humOsc.connect(humGain);
+        humGain.connect(audioCtx.destination);
+        humOsc.start();
+    }
 };
 
-export const playSound = (type: 'alarm' | 'click' | 'buy' | 'repair' | 'cash' | 'shred' | 'error') => {
+export const updateAmbience = (power: number, pressure: number, temp: number) => {
+    if (!audioCtx || !humOsc || !humGain) return;
+    const now = audioCtx.currentTime;
+
+    // Pitch rises with power (60Hz idle -> ~200Hz max)
+    const targetFreq = 60 + (power / 1500) * 140;
+    humOsc.frequency.setTargetAtTime(targetFreq, now, 0.2);
+
+    // Volume rises with pressure/stress (0 -> 0.15)
+    // If temp is high, add a bit more volume for "roaring"
+    const stressFactor = (pressure / 2000) + (Math.max(0, temp - 2000) / 1000);
+    const targetGain = Math.min(0.2, stressFactor * 0.15 + 0.01);
+    humGain.gain.setTargetAtTime(targetGain, now, 0.2);
+};
+
+export const playGeiger = (radiation: number) => {
+    if (!audioCtx || radiation < 5) return;
+    
+    // Radiation 0-1000. 
+    // Chance increases with rads. At 1000 rads, ~50% chance per check (called ~20fps = 10 clicks/sec)
+    const clickChance = (radiation / 1000) * 0.5; 
+    
+    if (Math.random() < clickChance && audioCtx.currentTime > nextGeigerClickTime) {
+        const t = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        
+        // Short, high-pitch click
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(1200 + Math.random() * 200, t);
+        
+        gain.gain.setValueAtTime(0.08, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.005);
+        
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        osc.start(t);
+        osc.stop(t + 0.01);
+        
+        // Limit max click rate slightly
+        nextGeigerClickTime = t + 0.04; 
+    }
+};
+
+export const playSound = (type: 'alarm' | 'click' | 'buy' | 'repair' | 'cash' | 'shred' | 'error' | 'build') => {
     if (!audioCtx) initAudio();
     if (!audioCtx) return;
 
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-    
-    // Master limiter for sfx
     gain.connect(audioCtx.destination);
     
     const now = audioCtx.currentTime;
@@ -100,7 +159,6 @@ export const playSound = (type: 'alarm' | 'click' | 'buy' | 'repair' | 'cash' | 
             break;
             
         case 'repair':
-            // Mechanical clank
             osc.type = 'square';
             osc.frequency.setValueAtTime(100, now);
             osc.frequency.exponentialRampToValueAtTime(50, now + 0.1);
@@ -111,7 +169,6 @@ export const playSound = (type: 'alarm' | 'click' | 'buy' | 'repair' | 'cash' | 
             break;
             
         case 'cash':
-            // Satisfying "kaching"
             const osc2 = audioCtx.createOscillator();
             osc2.type = 'sine';
             const gain2 = audioCtx.createGain();
@@ -123,7 +180,7 @@ export const playSound = (type: 'alarm' | 'click' | 'buy' | 'repair' | 'cash' | 
             gain.gain.setValueAtTime(0.05, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
             
-            osc2.frequency.setValueAtTime(2000, now); // Higher coin sound delayed slightly or just simultaneous
+            osc2.frequency.setValueAtTime(2000, now);
             osc2.frequency.setValueAtTime(2000, now + 0.05);
             gain2.gain.setValueAtTime(0, now);
             gain2.gain.setValueAtTime(0.05, now + 0.05);
@@ -136,11 +193,8 @@ export const playSound = (type: 'alarm' | 'click' | 'buy' | 'repair' | 'cash' | 
             break;
             
         case 'shred':
-            // Harsh noise texture
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(50, now);
-            
-            // Modulation
             const mod = audioCtx.createOscillator();
             mod.type = 'square';
             mod.frequency.value = 50;
@@ -153,7 +207,6 @@ export const playSound = (type: 'alarm' | 'click' | 'buy' | 'repair' | 'cash' | 
 
             gain.gain.setValueAtTime(0.1, now);
             gain.gain.linearRampToValueAtTime(0, now + 0.6);
-            
             osc.start();
             osc.stop(now + 0.6);
             break;
@@ -167,6 +220,18 @@ export const playSound = (type: 'alarm' | 'click' | 'buy' | 'repair' | 'cash' | 
             osc.start();
             osc.stop(now + 0.3);
             break;
+
+        case 'build':
+            // Low thud/boom for construction
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(80, now);
+            osc.frequency.exponentialRampToValueAtTime(10, now + 0.5);
+            
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+            
+            osc.start();
+            osc.stop(now + 0.5);
+            break;
     }
 };
-    

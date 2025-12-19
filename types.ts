@@ -14,6 +14,19 @@ export interface SPE {
     active: boolean;
 }
 
+export interface Chapter {
+    id: number;
+    title: string;
+    year: string;
+    description: string;
+    winCondition: (s: GameState) => boolean;
+    modifiers: {
+        demandScale: number;
+        volatility: number;
+        regulatorAggression: number;
+    };
+}
+
 export interface GameState {
     // Core Physics
     temp: number;
@@ -23,14 +36,19 @@ export interface GameState {
     valve: number;
     pump: boolean;
     fuel: number;
+    
+    // Advanced Physics & Maintenance
     pumpHealth: number;
     turbineHealth: number;
+    condenserHealth: number; // New: Affects cooling efficiency
+    gridHz: number; // New: Must stay between 59-61Hz
+    brownoutActive: boolean;
     
     // Advanced Physics
-    xenon: number; // Neutron poisoning (0-100)
-    flowRate: number; // Actual coolant flow (0-100)
-    reactivity: number; // Net neutron multiplication factor
-    meltdownProgress: number; // 0-100, if 100 triggers Game Over
+    xenon: number; 
+    flowRate: number; 
+    reactivity: number; 
+    meltdownProgress: number; 
     
     // Grid & Output
     power: number;
@@ -38,12 +56,13 @@ export interface GameState {
     
     // Financials
     score: number; // Stock Price
-    cash: number; // Liquid cash
+    cash: number; 
     loan: number;
     creditScore: number;
     offshore: number;
     auditRisk: number;
     politicalCapital: number;
+    lastDividendWeek: number; 
     
     // Special Purpose Entities
     spes: SPE[];
@@ -61,10 +80,12 @@ export interface GameState {
     pumpLevel: number;
     hasAutoScram: boolean;
     lobbyingLevel: number;
+    lobbyingShieldTime: number; // New: Duration of active lobbying protection
     artificialShortage: boolean;
     
-    // Settings
+    // Meta
     difficulty: Difficulty;
+    currentChapter: number;
 }
 
 export interface LogEvent {
