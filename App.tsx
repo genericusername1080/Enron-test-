@@ -1,51 +1,116 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, RotateCcw, AlertTriangle, Zap, DollarSign, Activity, ShieldAlert, TrendingUp, TrendingDown, Lock, Globe, XCircle, Siren, Briefcase, Flag, CloudRain, CloudSun, Snowflake, CloudLightning } from 'lucide-react';
+import { Play, RotateCcw, AlertTriangle, Zap, DollarSign, Activity, ShieldAlert, TrendingUp, TrendingDown, Lock, Globe, XCircle, Siren, Briefcase, Flag, CloudRain, CloudSun, Snowflake, CloudLightning, Atom, MessageSquareQuote } from 'lucide-react';
 import Scene3D from './components/Scene3D';
 import ProgressBar from './components/UI/ProgressBar';
-import { GameState, LogEvent, StockPoint, Difficulty } from './types';
+import { GameState, LogEvent, StockPoint, Difficulty, SPE } from './types';
 import { INITIAL_STATE, PRICES, MAX_TEMP, MAX_PRES, MAX_RAD, MAX_POWER, HISTORIC_EVENTS, START_DATE, HISTORIC_WEATHER_PATTERNS } from './constants';
-import { playSound, initAudio } from './utils/audioUtils';
-import { generateCorporateSpin } from './services/geminiService';
+import { playSound, initAudio, startAmbience } from './utils/audioUtils';
+import { generateCorporateSpin, speakCorporateAdvice } from './services/geminiService';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 const App: React.FC = () => {
-    // Logic State
     const gameState = useRef<GameState>({ ...INITIAL_STATE });
-    
-    // UI State
     const [uiState, setUiState] = useState<GameState>({ ...INITIAL_STATE });
     const [logs, setLogs] = useState<LogEvent[]>([]);
     const [stockHistory, setStockHistory] = useState<StockPoint[]>([]);
-    const [activeTab, setActiveTab] = useState<'market' | 'bank' | 'shop' | 'politics'>('market');
+    const [activeTab, setActiveTab] = useState<'market' | 'bank' | 'partnerships' | 'shop'>('market');
     const [cutaway, setCutaway] = useState(true);
     const [started, setStarted] = useState(false);
     const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.ETHICAL);
     const [ticker, setTicker] = useState("Initializing Enron Data Feed...");
     const [activeAlert, setActiveAlert] = useState<{title: string, message: string, type: 'info' | 'warning' | 'danger'} | null>(null);
+    const [isSpeaking, setIsSpeaking] = useState(false);
 
-    // Helper to add logs
     const addLog = useCallback((message: string, type: LogEvent['type'] = 'info') => {
         const newLog = { id: Date.now(), message, type, timestamp: new Date().toLocaleTimeString() };
         setLogs(prev => [newLog, ...prev].slice(0, 5));
     }, []);
 
-    // Trigger High Visibility Alert
     const triggerAlert = useCallback((title: string, message: string, type: 'info' | 'warning' | 'danger' = 'warning') => {
         setActiveAlert({ title, message, type });
         addLog(`${title}: ${message}`, type);
-        
-        if (type === 'danger') {
-            playSound('alarm');
-            setTimeout(() => playSound('alarm'), 300);
-            setTimeout(() => playSound('alarm'), 600);
-        } else {
-            playSound('repair');
-        }
-
-        setTimeout(() => setActiveAlert(null), 4000);
+        if (type === 'danger') playSound('alarm');
+        else playSound('repair');
+        setTimeout(() => setActiveAlert(null), 5000);
     }, [addLog]);
 
-    // Game Loop
+    const handleConsultCEO = async () => {
+        if (isSpeaking) return;
+        playSound('click');
+        setIsSpeaking(true);
+        addLog("Dialing Ken Lay's private line...", 'info');
+        const audioData = await speakCorporateAdvice(gameState.current);
+        if (audioData) {
+            const ctx = new AudioContext();
+            const buffer = await ctx.decodeAudioData(audioData.buffer);
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(ctx.destination);
+            source.onended = () => setIsSpeaking(false);
+            source.start();
+        } else {
+            setIsSpeaking(false);
+        }
+    };
+
+    const createSPE = () => {
+        const s = gameState.current;
+        if (s.score < PRICES.CREATE_SPE) {
+            addLog("Not enough capital to create SPE.", 'danger');
+            playSound('error');
+            return;
+        }
+        const names = ["LJM", "Chewco", "Raptor I", "Raptor II", "JEDI"];
+        const name = names[s.spes.length % names.length];
+        const hiddenAmt = 15000 + (Math.random() * 10000);
+        const trigger = s.score * 0.7;
+
+        const newSPE: SPE = {
+            id: Math.random().toString(),
+            name,
+            debtHidden: hiddenAmt,
+            triggerPrice: trigger,
+            active: true
+        };
+
+        s.score -= PRICES.CREATE_SPE;
+        s.score += (hiddenAmt / 100); // Artificial boost
+        s.spes.push(newSPE);
+        s.totalHiddenDebt += hiddenAmt;
+        playSound('buy');
+        addLog(`Off-balance partnership ${name} created. Hiding $${Math.floor(hiddenAmt).toLocaleString()} liabilities.`, 'success');
+    };
+
+    // Ticker Update Loop
+    useEffect(() => {
+        if (!started) return;
+        const tickInterval = setInterval(() => {
+            const s = gameState.current;
+            // Find historic event for current date
+            const currentMonth = new Date(s.date).getMonth() + 1; // 1-12
+            const currentYear = new Date(s.date).getFullYear();
+            
+            const event = HISTORIC_EVENTS.find(e => e.month === currentMonth && e.year === currentYear);
+            if (event) {
+                setTicker(`BREAKING: ${event.title} - ${event.description}`);
+            } else {
+                const headlines = [
+                    "ANALYSTS RATE ENE 'STRONG BUY'",
+                    "NEW BROADBAND DIVISION ANNOUNCED",
+                    "CALIFORNIA ROLLING BLACKOUTS REPORTED",
+                    "BLOCKBUSTER DEAL RUMORED",
+                    "ARTHUR ANDERSEN SHREDDING PARTY CONFIRMED",
+                    "SEC: 'EVERYTHING LOOKS FINE'",
+                    "KEN LAY: 'COMPANY FUNDAMENTALS STRONG'"
+                ];
+                setTicker(headlines[Math.floor(Math.random() * headlines.length)]);
+            }
+        }, 8000);
+        return () => clearInterval(tickInterval);
+    }, [started]);
+
+    // Main Game Loop
     useEffect(() => {
         if (!started) return;
 
@@ -53,660 +118,260 @@ const App: React.FC = () => {
             const s = gameState.current;
             if (s.gameOver) return;
 
-            // Time & Calendar
-            s.dayTime += 0.04; // Faster day cycle
+            // --- Physics & Environmental Update ---
+            s.dayTime += 0.05;
             if (s.dayTime >= 24) {
                 s.dayTime = 0;
                 s.dayCount++;
-                
-                // Update Calendar Date
                 const currentDate = new Date(START_DATE);
-                currentDate.setDate(currentDate.getDate() + (s.dayCount * 7)); // 1 Day = 1 Week
+                currentDate.setDate(currentDate.getDate() + (s.dayCount * 7));
                 s.date = currentDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                const currentMonth = currentDate.getMonth() + 1;
-                const currentYear = currentDate.getFullYear();
-
-                // Historic Weather Check
-                const weatherPattern = HISTORIC_WEATHER_PATTERNS.find(w => w.month === currentMonth && w.year === currentYear);
-                let weatherTempMod = 1.0;
-                let weatherDemandMod = 1.0;
                 
+                // Update Weather based on history
+                const m = currentDate.getMonth() + 1;
+                const y = currentDate.getFullYear();
+                const weatherPattern = HISTORIC_WEATHER_PATTERNS.find(w => w.month === m && w.year === y);
                 if (weatherPattern) {
                     s.weather = weatherPattern.type;
-                    weatherTempMod = weatherPattern.tempMod;
-                    weatherDemandMod = weatherPattern.demandMod;
-                    
-                    // Announce new weather pattern occasionally
-                    if (s.dayCount % 4 === 0 && Math.random() > 0.7) {
-                         addLog(`WEATHER: ${weatherPattern.name}`, 'info');
-                         playSound('repair');
+                    if (s.dayTime < 1) { // Trigger once per week start
+                        addLog(`WEATHER ALERT: ${weatherPattern.name}`, 'warning');
                     }
                 } else {
-                    s.weather = 'sunny'; // Default
+                    s.weather = 'sunny';
                 }
-
-                // Historic Events Check
-                HISTORIC_EVENTS.forEach(event => {
-                    if (event.month === currentMonth && event.year === currentYear && !s.failReason) {
-                        // Probability check to avoid spamming every tick of the month, but ensure it happens
-                        if (Math.random() < 0.05) {
-                            // Unique check simplified by just checking if it was recently logged could be better, but probability works for this scale
-                             // We use a simple hack: modify the title slightly in logs if needed, or just allow repeats as "updates"
-                             // Better: check if activeAlert matches
-                             if (activeAlert?.title !== event.title) {
-                                triggerAlert(event.title, event.description, event.type);
-                                if (event.effect) event.effect(s);
-                             }
-                        }
-                    }
-                });
-
-                // Interest & Decay
-                if (s.loan > 0) {
-                    const baseRate = 0.12 + (s.difficulty * 0.03);
-                    const rate = Math.max(0.05, baseRate - (s.creditScore / 1000));
-                    const interest = s.loan * rate;
-                    s.score -= interest;
-                }
-                
-                // Audit Decay based on Political Capital
-                if (s.auditRisk > 0) {
-                    const decay = (3 + (s.politicalCapital * 0.1)) / s.difficulty; 
-                    s.auditRisk = Math.max(0, s.auditRisk - decay);
-                }
-                
-                // Political Capital Decay
-                if (s.politicalCapital > 0 && s.dayCount % 4 === 0) {
-                    s.politicalCapital--;
-                }
-
-                // Store mods for physics loop
-                (s as any)._tempMod = weatherTempMod;
-                (s as any)._demandMod = weatherDemandMod;
             }
 
-            const tempMod = (gameState.current as any)._tempMod || 1.0;
-            const demandMod = (gameState.current as any)._demandMod || 1.0;
+            // SPE Trigger Check
+            s.spes.forEach((spe, idx) => {
+                if (spe.active && s.score < spe.triggerPrice) {
+                    spe.active = false;
+                    s.loan += spe.debtHidden;
+                    s.auditRisk += 30;
+                    s.score -= (spe.debtHidden / 50);
+                    triggerAlert(`SPE COLLAPSE: ${spe.name}`, `Trigger price $${spe.triggerPrice.toFixed(2)} hit. Debt returned to balance sheet.`, 'danger');
+                }
+            });
 
-            // Physics Simulation
-            const reactionIntensity = (100 - s.rods) / 100;
-            if (reactionIntensity > 0) s.fuel = Math.max(0, s.fuel - (0.01 + reactionIntensity * 0.03));
-
-            // Wear & Tear (Weather affects wear too)
-            let pumpWear = 0.015;
-            if (s.weather === 'thunderstorm') pumpWear *= 2;
+            // --- Reactor Physics 2.0 (Xenon Poisoning) ---
+            const rodInsertion = s.rods / 100; // 1.0 = fully inserted (shutdown), 0.0 = fully out (max power)
             
-            if (s.pump) s.pumpHealth = Math.max(0, s.pumpHealth - pumpWear);
-            if (s.valve > 0) s.turbineHealth = Math.max(0, s.turbineHealth - (0.01 + (s.valve/100)*0.02));
-
-            // Heat & Pressure
-            const fuelEff = Math.max(0.2, s.fuel / 100);
-            const heatGen = Math.pow((100 - s.rods), 1.2) * 0.8 * fuelEff;
+            // Reactivity: 
+            // - Base reactivity increases as rods are pulled out (1 - rodInsertion)
+            // - Xenon acts as a neutron poison (negative reactivity)
+            // - Temperature provides negative feedback (doppler broadening/density)
             
-            let pumpEff = s.pumpLevel * (s.pumpHealth / 100);
-            if (!s.pump) pumpEff = 0;
+            const xenonPenalty = s.xenon * 0.005; // Xenon poisoning effect
+            const tempPenalty = (s.temp - 300) * 0.0001; // Temp feedback
             
-            // Cooling affected by ambient temp (weather)
-            const baseAmbient = 20 * tempMod;
-            let cooling = 5 + (s.temp - baseAmbient) * 0.005;
-            const activeCooling = (s.temp - 100) * 0.15 * pumpEff;
-            let steamCreated = 0;
+            s.reactivity = (1 - rodInsertion) - xenonPenalty - tempPenalty;
+            s.reactivity = Math.max(-1, Math.min(1, s.reactivity)); // Clamp
+
+            // Xenon Dynamics:
+            // 1. Production: proportional to Power (fission product decay)
+            // 2. Burn: proportional to Neutron Flux (Power) * Xenon concentration
+            // 3. Decay: Natural radioactive decay
+            const xenonProduction = s.power * 0.0015;
+            const xenonBurn = s.xenon * s.power * 0.00005;
+            const xenonDecay = s.xenon * 0.001;
             
-            if (activeCooling > 0) {
-                cooling += activeCooling;
-                steamCreated = activeCooling * 2;
-            }
-            s.temp = Math.max(baseAmbient, s.temp + (heatGen - cooling));
+            s.xenon = Math.max(0, Math.min(100, s.xenon + xenonProduction - xenonBurn - xenonDecay));
 
-            const valveFlow = (s.valve / 100) * s.pressure * 0.1;
-            s.pressure = Math.max(0, s.pressure + steamCreated - valveFlow);
+            // Thermal Hydraulics
+            const heatGen = Math.max(0, s.reactivity * 50) + (s.power * 0.1); // Residual heat + fission
+            const targetFlow = s.pump ? s.pumpHealth : 0;
+            s.flowRate = s.flowRate * 0.9 + targetFlow * 0.1;
+            
+            // Cooling effectiveness depends on flow rate and delta T
+            const cooling = (s.temp - 20) * 0.005 + (s.temp - 80) * 0.3 * (s.flowRate/100) * s.pumpLevel;
+            
+            // Add randomness/noise to temp
+            s.temp = Math.max(20, s.temp + (heatGen - cooling) + (Math.random() - 0.5));
+            
+            const steam = Math.max(0, (s.temp - 100) * 0.6);
+            const valveOut = (s.valve/100) * s.pressure * 0.15;
+            s.pressure = Math.max(0, s.pressure + steam - valveOut);
 
-            // Radiation
-            if (s.temp > 2000 || s.pressure > 1500) {
-                s.radiation += 0.5;
-                s.score -= (s.radiation * 0.5); 
-            } else {
-                s.radiation = Math.max(0, s.radiation - 0.1);
-            }
+            if (s.temp > 2500 || s.pressure > 1800) s.radiation += 1.5;
+            else s.radiation = Math.max(0, s.radiation - 0.1);
 
-            // Power Gen & Economics
-            const turbEff = s.turbineHealth / 100;
-            let output = valveFlow * 15 * turbEff;
-            if (s.artificialShortage) output *= 0.3;
+            const output = valveOut * 25 * (s.turbineHealth/100);
             s.power = Math.min(1500, output);
-
-            let targetDemand = 300 * demandMod;
-            const h = s.dayTime;
-            if (h >= 9 && h < 17) targetDemand = 700 * demandMod;
-            else if (h >= 17 && h < 22) targetDemand = 850 * demandMod;
             
-            s.gridDemand = s.gridDemand * 0.98 + targetDemand * 0.02;
-
-            let spotPrice = 0.10;
-            if (h >= 17 && h <= 21) spotPrice = 0.50;
-            else if (h >= 9 && h < 17) spotPrice = 0.25;
+            // --- Financial Physics ---
+            // Score tracks power output but punished by audit risk
+            const revenue = (s.power - 500) * 0.02;
+            const debtInterest = s.loan * 0.0001;
+            s.score += revenue - debtInterest;
             
-            // Prices skyrocket during heatwaves/shortages
-            if (s.artificialShortage) spotPrice *= 6;
-            if (tempMod > 1.2) spotPrice *= 1.5; 
-
-            const sold = Math.min(s.power, s.gridDemand);
-            const income = sold * spotPrice * 0.1;
-            const penalties = (s.power < s.gridDemand * 0.9) ? (s.gridDemand - s.power) * 0.05 : 0;
-            const wages = 2.0;
-            
-            s.score += (income - penalties - wages);
-            s.cash += (income - penalties - wages) * 0.5;
-
-            // Auto Scram
-            if (s.hasAutoScram && s.temp > 2500 && s.rods < 100) {
-                s.rods = 100;
-                s.valve = 100;
-                s.hasAutoScram = false;
-                triggerAlert("AUTO-SCRAM TRIGGERED", "System reset. Manual override required.", 'danger');
-            }
-
-            // Game Over Checks
             if (s.temp > MAX_TEMP) { s.gameOver = true; s.failReason = "CORE MELTDOWN"; }
-            if (s.pressure > MAX_PRES) { s.gameOver = true; s.failReason = "PRESSURE EXPLOSION"; }
-            if (s.radiation > MAX_RAD) { s.gameOver = true; s.failReason = "RADIATION EVACUATION"; }
-            if (s.score < -2000) { s.gameOver = true; s.failReason = "CHAPTER 11 BANKRUPTCY"; }
-            
-            // End of 2001
-            const dateObj = new Date(s.date);
-            if (dateObj.getFullYear() >= 2002) {
-                s.gameOver = true;
-                s.failReason = "HISTORICAL TIMELINE ENDED"; // Victory, sort of.
-            }
+            if (s.pressure > MAX_PRES) { s.gameOver = true; s.failReason = "CONTAINMENT BREACH"; }
+            if (s.score < -5000) { s.gameOver = true; s.failReason = "TOTAL BANKRUPTCY"; }
 
-            // Update React State (throttled)
-            if (Math.floor(Date.now() / 100) % 2 === 0) {
-                setUiState({ ...s });
-            }
+            setUiState({ ...s });
         }, 50);
 
-        // History Chart Loop
-        const histInterval = setInterval(() => {
-            if (gameState.current.gameOver) return;
-            setStockHistory(prev => {
-                const newData = [...prev, { time: '', price: gameState.current.score }];
-                return newData.slice(-30); 
-            });
+        return () => clearInterval(interval);
+    }, [started, triggerAlert]);
+
+    // Financial Chart
+    useEffect(() => {
+        if (!started) return;
+        const hInt = setInterval(() => {
+            setStockHistory(prev => [...prev.slice(-40), { time: '', price: gameState.current.score }]);
         }, 1000);
+        return () => clearInterval(hInt);
+    }, [started]);
 
-        // Gemini Ticker Loop
-        const tickerInterval = setInterval(async () => {
-            if (gameState.current.gameOver) return;
-            if (Math.random() > 0.3) return; 
-            
-            const txt = await generateCorporateSpin(gameState.current, 'ticker');
-            setTicker(txt);
-        }, 15000);
-
-        return () => {
-            clearInterval(interval);
-            clearInterval(histInterval);
-            clearInterval(tickerInterval);
-        };
-    }, [started, addLog, triggerAlert]);
-
-    // --- Actions ---
-    const handleStart = () => {
-        initAudio();
-        setStarted(true);
-        gameState.current = { ...INITIAL_STATE, difficulty };
-        setUiState({ ...INITIAL_STATE, difficulty });
-        setStockHistory([]);
-        setLogs([]);
-        playSound('click');
-    };
-
-    const updateControl = (key: 'rods' | 'valve', val: number) => {
-        gameState.current[key] = val;
-    };
-
-    const togglePump = () => {
-        gameState.current.pump = !gameState.current.pump;
-        playSound('click');
-    };
-
-    const handleBuy = (item: keyof typeof PRICES) => {
-        const diffMult = 1 + (gameState.current.difficulty - 1) * 0.25; 
-        const cost = PRICES[item] * diffMult;
-
-        if (gameState.current.score >= cost) {
-            if (item === 'SHRED') {
-                gameState.current.auditRisk = Math.max(0, gameState.current.auditRisk - 30);
-                addLog("Evidence Destroyed", 'success');
-            }
-            if (item === 'LOBBY') {
-                gameState.current.politicalCapital += 5;
-                addLog("Lobbyists Deployed", 'success');
-            }
-            if (item === 'CAMPAIGN_DONATION') {
-                gameState.current.politicalCapital += 3;
-                addLog("Campaign Contribution Sent", 'success');
-            }
-            if (item === 'REFUEL') gameState.current.fuel = 100;
-            if (item === 'FIX_PUMP') gameState.current.pumpHealth = 100;
-            if (item === 'FIX_TURB') gameState.current.turbineHealth = 100;
-            if (item === 'PUMP_UPGRADE_BASE') gameState.current.pumpLevel++;
-            if (item === 'AUTOSCRAM') gameState.current.hasAutoScram = true;
-
-            gameState.current.score -= cost;
-            playSound('buy');
-        } else {
-            addLog(`Insufficient Funds. Need $${Math.floor(cost)}`, 'warning');
-            playSound('alarm');
-        }
-    };
-
-    const cookBooks = async () => {
-        const baseGain = 3000;
-        const gain = baseGain + (baseGain * (difficulty - 1) * 0.5);
-        
-        gameState.current.score += gain;
-        gameState.current.auditRisk += 15 + (difficulty * 5);
-        
-        playSound('cash');
-        addLog(`Books Cooked: +$${Math.floor(gain)}`, 'warning');
-        
-        const spin = await generateCorporateSpin(gameState.current, 'profit');
-        setTicker(spin);
-    };
-
-    const formatMoney = (val: number) => {
-        return val >= 0 ? `$${Math.floor(val).toLocaleString()}` : `-$${Math.floor(Math.abs(val)).toLocaleString()}`;
-    };
-
-    const getWeatherIcon = (type: string) => {
-        switch(type) {
-            case 'rainy': return <CloudRain size={16} />;
-            case 'snowy': return <Snowflake size={16} />;
-            case 'thunderstorm': return <CloudLightning size={16} />;
-            case 'cloudy': return <CloudSun size={16} />;
-            default: return <CloudSun size={16} />;
-        }
-    };
-
-    const DIFFICULTY_DESC = {
-        [Difficulty.ETHICAL]: "Standard Economy. Low Audit Risk.",
-        [Difficulty.AGGRESSIVE]: "Volatile Market. Mechanical failures occur.",
-        [Difficulty.SKILLING]: "High Returns. High Audit Risk. Freq. Failures.",
-        [Difficulty.FASTOW]: "Extreme Corruption. Max Interest. Max Risk."
-    };
-
-    if (!started) {
-        return (
-            <div className="h-screen w-screen flex items-center justify-center bg-gray-900 text-white relative overflow-hidden">
-                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop')] bg-cover opacity-20 animate-pulse"></div>
-                <div className="z-10 bg-black/80 p-12 rounded-2xl border border-blue-500/30 backdrop-blur-xl shadow-2xl max-w-md text-center animate-fade-in">
-                    <h1 className="text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-4">
-                        ENRON
-                    </h1>
-                    <p className="text-xl font-mono text-blue-200 mb-8 tracking-widest">MELTDOWN MANAGER</p>
-                    
-                    <div className="space-y-4 mb-8">
-                        <p className="text-gray-400 text-sm">Select Corporate Strategy</p>
-                        <div className="grid grid-cols-2 gap-3">
-                            {Object.entries(Difficulty).filter(([k,v]) => typeof v === 'number').map(([key, val]) => (
-                                <button 
-                                    key={key}
-                                    onClick={() => setDifficulty(val as Difficulty)}
-                                    className={`p-3 rounded border text-xs font-bold transition-all duration-200 hover:scale-105 active:scale-95 ${difficulty === val ? 'bg-blue-600 border-blue-400 text-white shadow-lg scale-105' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
-                                >
-                                    {key}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="text-xs text-yellow-400 font-mono h-8 flex items-center justify-center">
-                            {DIFFICULTY_DESC[difficulty]}
-                        </div>
-                    </div>
-
-                    <button 
-                        onClick={handleStart}
-                        className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 transition-all transform hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(37,99,235,0.5)]"
-                    >
-                        <Play size={20} /> INITIALIZE MARKET
-                    </button>
+    if (!started) return (
+        <div className="h-screen w-screen flex items-center justify-center bg-black text-white">
+            <div className="max-w-md p-10 bg-gray-900 border border-blue-500 rounded-xl text-center shadow-[0_0_50px_rgba(59,130,246,0.3)]">
+                <h1 className="text-4xl font-black mb-6 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-green-400">ENRON: MELTDOWN</h1>
+                <div className="space-y-4 mb-8">
+                    {Object.values(Difficulty).filter(v => typeof v === 'number').map(v => (
+                        <button 
+                            key={v} 
+                            onClick={() => { setDifficulty(v as Difficulty); playSound('click'); }} 
+                            className={`w-full p-3 rounded border font-mono transition-all ${difficulty === v ? 'bg-blue-600 border-blue-400 text-white shadow-lg scale-105' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}
+                        >
+                            {Difficulty[v as number]} MODE
+                        </button>
+                    ))}
                 </div>
+                <button 
+                    onClick={() => { initAudio(); startAmbience(); playSound('buy'); setStarted(true); }} 
+                    className="w-full py-4 bg-green-600 hover:bg-green-500 border border-green-400 rounded font-bold text-xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all hover:scale-105"
+                >
+                    START FRAUD
+                </button>
             </div>
-        );
-    }
+        </div>
+    );
 
     return (
-        <div className={`h-screen w-screen relative overflow-hidden text-white ${activeAlert?.type === 'danger' ? 'animate-flash-red' : ''}`}>
-            {/* Background Scene */}
-            <Scene3D gameState={gameState} cutaway={cutaway} />
+        <div className={`h-screen w-screen relative bg-black overflow-hidden font-sans ${uiState.radiation > 100 ? 'contrast-125 saturate-150 brightness-110' : ''}`}>
+            {/* Visual Overlays for Radiation/Heat */}
+            {uiState.radiation > 150 && <div className="absolute inset-0 z-40 pointer-events-none mix-blend-screen opacity-30 bg-[radial-gradient(circle,rgba(0,255,0,0.2)_0%,transparent_70%)] animate-pulse" />}
+            {uiState.temp > 2400 && <div className="absolute inset-0 z-40 pointer-events-none mix-blend-overlay opacity-20 bg-orange-900 animate-pulse" />}
             
-            {/* Critical Alert Overlay */}
-            {activeAlert && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-                    <div className={`relative max-w-xl w-full mx-4 p-8 rounded-2xl border-4 shadow-2xl backdrop-blur-xl flex flex-col items-center text-center gap-4 animate-pop-in ${
-                        activeAlert.type === 'danger' 
-                            ? 'bg-red-950/90 border-red-500 text-white shadow-[0_0_100px_rgba(220,38,38,0.6)] animate-pulse' 
-                            : activeAlert.type === 'warning'
-                                ? 'bg-yellow-950/90 border-yellow-500 text-yellow-100 shadow-[0_0_50px_rgba(234,179,8,0.6)]'
-                                : 'bg-blue-950/90 border-blue-500 text-blue-100 shadow-[0_0_50px_rgba(59,130,246,0.6)]'
-                    }`}>
-                        <div className={`p-5 rounded-full shadow-lg transition-transform duration-500 hover:scale-110 ${
-                            activeAlert.type === 'danger' ? 'bg-red-600 text-white' : 
-                            activeAlert.type === 'warning' ? 'bg-yellow-500 text-black' :
-                            'bg-blue-500 text-white'
-                        }`}>
-                            {activeAlert.type === 'danger' ? <Siren size={64} /> : activeAlert.type === 'warning' ? <AlertTriangle size={64} /> : <Briefcase size={64} />}
-                        </div>
-                        <div>
-                            <h2 className="text-5xl font-black uppercase tracking-widest italic mb-2 drop-shadow-lg">{activeAlert.title}</h2>
-                            <div className="text-xl font-mono border-t-2 border-white/20 pt-4 mt-2 leading-snug font-bold">
-                                {activeAlert.message}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Game Over Overlay */}
-            {uiState.gameOver && (
-                <div className="absolute inset-0 z-50 bg-black/90 flex items-center justify-center flex-col backdrop-blur-md animate-fade-in">
-                    <h1 className="text-7xl font-black text-red-600 mb-4 tracking-tighter animate-pulse">{uiState.failReason}</h1>
-                    <div className="text-2xl text-gray-400 mb-8 font-mono">
-                        Total Wealth Extracted: <span className="text-green-400 font-bold">{formatMoney(uiState.offshore)}</span>
-                    </div>
-                    <div className="text-xl text-blue-400 mb-8 font-mono">
-                        Timeline Reached: {uiState.date}
-                    </div>
-                    <button 
-                        onClick={() => window.location.reload()}
-                        className="px-8 py-3 border border-white/20 rounded hover:bg-white/10 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2"
-                    >
-                        <RotateCcw size={18} /> RESTART SIMULATION
-                    </button>
-                </div>
-            )}
+            <Scene3D gameState={gameState} cutaway={cutaway} />
 
             {/* Top HUD */}
-            <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start z-20 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-                <div className="flex flex-col gap-1">
-                    <div className="bg-black/40 backdrop-blur border border-white/10 rounded px-4 py-2">
-                        <div className="text-xs text-blue-400 font-bold tracking-wider">STOCK PRICE</div>
-                        <div className={`text-3xl font-black font-mono transition-colors duration-300 ${uiState.score > 0 ? 'text-green-400' : 'text-red-500'}`}>
-                            {formatMoney(uiState.score)}
+            <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start z-30 pointer-events-none">
+                <div className="flex flex-col gap-2 pointer-events-auto">
+                    <div className="bg-black/60 backdrop-blur border border-white/10 p-4 rounded shadow-xl">
+                        <div className="text-xs text-blue-400 font-bold tracking-widest">ENRON CORP (NYSE: ENE)</div>
+                        <div className={`text-4xl font-black ${uiState.score > 0 ? 'text-green-400' : 'text-red-500'}`}>
+                            ${uiState.score.toFixed(2)}
                         </div>
                     </div>
-                    <div className="bg-black/40 backdrop-blur border border-white/10 rounded px-4 py-1 text-xs font-mono text-gray-300 flex items-center gap-2 overflow-hidden w-64 relative">
-                        <Globe size={12} className="shrink-0 z-10 bg-black/20 p-0.5 rounded" /> 
-                        <div className="w-full overflow-hidden">
-                            <div key={ticker} className="animate-ticker whitespace-nowrap">{ticker}</div>
-                        </div>
+                    <div className="bg-black/60 border border-white/10 px-3 py-1 rounded text-[10px] font-mono w-64 overflow-hidden">
+                        <div className="animate-ticker text-gray-400 uppercase tracking-tighter">{ticker}</div>
                     </div>
                 </div>
 
-                <div className="flex gap-2 pointer-events-auto">
-                    <button 
-                        onClick={() => setCutaway(!cutaway)}
-                        className={`px-4 py-2 rounded backdrop-blur border text-sm font-bold transition-all duration-200 hover:scale-105 active:scale-95 ${cutaway ? 'bg-blue-600/80 border-blue-400' : 'bg-black/40 border-white/10'}`}
-                    >
-                        {cutaway ? 'EXTERIOR VIEW' : 'CUTAWAY VIEW'}
+                <div className="flex gap-4 items-center pointer-events-auto">
+                    <button onClick={handleConsultCEO} disabled={isSpeaking} className={`p-4 rounded-full bg-blue-600 border border-blue-400 text-white shadow-lg transition-all ${isSpeaking ? 'opacity-50 scale-90' : 'hover:scale-110 hover:shadow-blue-500/50'}`}>
+                        <MessageSquareQuote size={24} />
                     </button>
-                    <div className="bg-black/40 backdrop-blur border border-white/10 rounded px-4 py-2 text-right min-w-[140px] flex flex-col items-end">
-                        <div className="text-2xl font-bold font-mono">
-                           {uiState.date}
-                        </div>
-                         <div className="text-xs font-mono text-gray-400 flex items-center gap-1">
-                           {getWeatherIcon(uiState.weather)} Day {uiState.dayCount}
+                    <div className="bg-black/60 p-4 rounded border border-white/10 text-right shadow-xl">
+                        <div className="text-xl font-bold font-mono">{uiState.date}</div>
+                        <div className="flex justify-between w-full">
+                            <div className="text-[10px] text-gray-500">WEEK {uiState.dayCount}</div>
+                            <div className="text-[10px] text-blue-300 uppercase">{uiState.weather}</div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Event Log */}
-            <div className="absolute top-24 left-4 w-64 pointer-events-none z-10 flex flex-col gap-2">
-                {logs.map(log => (
-                    <div key={log.id} className={`bg-black/60 backdrop-blur p-2 rounded border-l-2 text-xs font-mono animate-slide-up ${
-                        log.type === 'danger' ? 'border-red-500 text-red-200' : 
-                        log.type === 'success' ? 'border-green-500 text-green-200' : 
-                        'border-blue-500 text-blue-200'
-                    }`}>
-                        <span className="opacity-50 mr-2">[{log.timestamp}]</span>
-                        {log.message}
-                    </div>
-                ))}
-            </div>
-
-            {/* Main UI Grid */}
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[95%] max-w-6xl z-20">
-                <div className="bg-black/80 backdrop-blur-xl border border-white/10 rounded-xl p-6 shadow-2xl grid grid-cols-12 gap-6 animate-slide-up">
+            {/* Bottom Controls */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[95%] max-w-6xl z-30 pointer-events-none">
+                <div className="bg-black/80 backdrop-blur-xl border border-white/10 p-6 rounded-xl grid grid-cols-12 gap-6 pointer-events-auto shadow-2xl">
                     
-                    {/* Reactor Panel */}
-                    <div className="col-span-3 bg-white/5 rounded-lg p-4 border border-white/5 flex flex-col gap-2">
-                        <h3 className="text-xs font-black text-blue-400 tracking-widest uppercase mb-2 flex items-center gap-2">
-                            <Activity size={14} /> Reactor Core
-                        </h3>
-                        
-                        <ProgressBar value={uiState.temp} max={MAX_TEMP} label="CORE TEMP" unit="°C" warning={uiState.temp > 2000} />
-                        <ProgressBar value={uiState.pressure} max={MAX_PRES} label="PRESSURE" unit=" PSI" color="bg-cyan-500" warning={uiState.pressure > 1200} />
-                        <ProgressBar value={uiState.radiation} max={MAX_RAD} label="RADIATION" unit=" mSv" color="bg-purple-500" warning={uiState.radiation > 100} />
+                    {/* Left: Engineering */}
+                    <div className="col-span-3 space-y-3 border-r border-white/10 pr-6">
+                        <h3 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><Atom size={14}/> Core Status</h3>
+                        <ProgressBar value={uiState.temp} max={MAX_TEMP} label="TEMP" unit="°C" color="bg-orange-500" warning={uiState.temp > 2000} />
+                        <ProgressBar value={uiState.pressure} max={MAX_PRES} label="PRESSURE" unit=" PSI" color="bg-cyan-500" warning={uiState.pressure > 1500} />
+                        <ProgressBar value={uiState.xenon} max={100} label="XENON POISON" unit="%" color="bg-purple-500" warning={uiState.xenon > 80} />
+                    </div>
 
-                        <div className={`mt-auto text-center p-2 rounded font-bold text-xs uppercase tracking-wider animate-pulse ${uiState.temp > 2500 || uiState.pressure > 1500 ? 'bg-red-500/20 text-red-500 border border-red-500/50' : 'opacity-0'}`}>
-                            <AlertTriangle size={12} className="inline mr-1" /> CRITICAL WARNING
+                    {/* Middle: Controls */}
+                    <div className="col-span-3 space-y-4">
+                        <h3 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><Zap size={14}/> Automation</h3>
+                        <div>
+                            <div className="flex justify-between text-[10px] mb-1 text-gray-400"><span>RODS (Reactivity: {uiState.reactivity.toFixed(2)})</span><span>{uiState.rods}%</span></div>
+                            <input type="range" className="w-full accent-blue-500 h-1 bg-gray-700 rounded-full appearance-none cursor-pointer" value={uiState.rods} onChange={e => gameState.current.rods = parseInt(e.target.value)} />
+                        </div>
+                        <div>
+                            <div className="flex justify-between text-[10px] mb-1 text-gray-400"><span>VALVE</span><span>{uiState.valve}%</span></div>
+                            <input type="range" className="w-full accent-cyan-500 h-1 bg-gray-700 rounded-full appearance-none cursor-pointer" value={uiState.valve} onChange={e => gameState.current.valve = parseInt(e.target.value)} />
+                        </div>
+                        <div className="flex gap-2">
+                             <button onClick={() => { gameState.current.pump = !gameState.current.pump; playSound('click'); }} className={`flex-1 py-2 text-[10px] font-bold rounded transition-colors ${uiState.pump ? 'bg-green-600 hover:bg-green-500' : 'bg-gray-700 hover:bg-gray-600'}`}>PUMP: {uiState.pump ? 'ON' : 'OFF'}</button>
+                             <button onClick={() => { gameState.current.rods = 100; gameState.current.valve = 100; playSound('alarm'); }} className="flex-1 py-2 text-[10px] font-bold bg-red-600 hover:bg-red-500 rounded transition-colors">SCRAM</button>
                         </div>
                     </div>
 
-                    {/* Controls Panel */}
-                    <div className="col-span-3 bg-white/5 rounded-lg p-4 border border-white/5 flex flex-col">
-                         <h3 className="text-xs font-black text-blue-400 tracking-widest uppercase mb-4 flex items-center gap-2">
-                            <Zap size={14} /> Systems Control
-                        </h3>
-
-                        <div className="mb-4">
-                            <label className="text-xs text-gray-400 font-bold flex justify-between mb-1">
-                                <span>CONTROL RODS</span>
-                                <span>{uiState.rods}%</span>
-                            </label>
-                            <input 
-                                type="range" min="0" max="100" 
-                                value={uiState.rods} 
-                                onChange={(e) => updateControl('rods', parseInt(e.target.value))}
-                                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                            />
-                        </div>
-
-                        <div className="mb-4">
-                            <label className="text-xs text-gray-400 font-bold flex justify-between mb-1">
-                                <span>STEAM VALVE</span>
-                                <span>{uiState.valve}%</span>
-                            </label>
-                            <input 
-                                type="range" min="0" max="100" 
-                                value={uiState.valve} 
-                                onChange={(e) => updateControl('valve', parseInt(e.target.value))}
-                                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 mt-auto">
-                            <button 
-                                onClick={togglePump}
-                                className={`py-2 px-3 rounded font-bold text-xs transition-all duration-150 hover:scale-105 active:scale-95 ${uiState.pump ? 'bg-green-600 text-white shadow-[0_0_10px_rgba(22,163,74,0.4)]' : 'bg-gray-700 text-gray-400'}`}
-                            >
-                                PUMP: {uiState.pump ? 'ON' : 'OFF'}
-                            </button>
-                            <button 
-                                onClick={() => {
-                                    updateControl('rods', 100);
-                                    updateControl('valve', 100);
-                                    playSound('alarm');
-                                }}
-                                className="py-2 px-3 rounded font-bold text-xs bg-red-600 hover:bg-red-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.4)] transition-all duration-150 hover:scale-105 active:scale-95"
-                            >
-                                SCRAM
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Grid Output */}
-                    <div className="col-span-3 bg-white/5 rounded-lg p-4 border border-white/5 flex flex-col">
-                        <h3 className="text-xs font-black text-blue-400 tracking-widest uppercase mb-2 flex items-center gap-2">
-                            <TrendingUp size={14} /> Grid Output
-                        </h3>
-                        
-                        <ProgressBar value={uiState.power} max={MAX_POWER} label="OUTPUT" unit=" MW" color="bg-orange-500" marker={uiState.gridDemand} />
-                        
-                        <div className="mt-2 text-xs text-gray-400 grid grid-cols-2 gap-2">
-                            <div className="bg-black/20 p-2 rounded">
-                                <div className="text-[10px] uppercase">Efficiency</div>
-                                <div className="font-mono text-white">{(uiState.turbineHealth).toFixed(0)}%</div>
-                            </div>
-                            <div className="bg-black/20 p-2 rounded">
-                                <div className="text-[10px] uppercase">Target</div>
-                                <div className="font-mono text-yellow-500">{uiState.gridDemand.toFixed(0)} MW</div>
-                            </div>
-                        </div>
-
-                        <div className="mt-auto h-20 w-full">
-                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={stockHistory}>
-                                    <defs>
-                                        <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#4ade80" stopOpacity={0.3}/>
-                                            <stop offset="95%" stopColor="#4ade80" stopOpacity={0}/>
-                                        </linearGradient>
-                                    </defs>
-                                    <Area type="monotone" dataKey="price" stroke="#4ade80" fillOpacity={1} fill="url(#colorPrice)" isAnimationActive={false} />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-
-                    {/* CFO Panel */}
-                    <div className="col-span-3 bg-white/5 rounded-lg p-4 border border-white/5 flex flex-col">
-                        <div className="flex gap-1 mb-4 bg-black/30 p-1 rounded-lg">
-                            {['market', 'bank', 'politics', 'shop'].map(tab => (
-                                <button 
-                                    key={tab}
-                                    onClick={() => setActiveTab(tab as any)}
-                                    className={`flex-1 py-1 text-[10px] font-bold uppercase rounded transition-all duration-200 ${activeTab === tab ? 'bg-blue-600 text-white shadow-md scale-105' : 'text-gray-500 hover:text-gray-300'}`}
-                                >
-                                    {tab === 'politics' ? <Flag size={10} className="mx-auto"/> : tab}
-                                </button>
+                    {/* Right: CFO Dashboard */}
+                    <div className="col-span-6 flex flex-col gap-4">
+                        <div className="flex gap-2 border-b border-white/10 pb-2">
+                            {['market', 'bank', 'partnerships', 'shop'].map(t => (
+                                <button key={t} onClick={() => { setActiveTab(t as any); playSound('click'); }} className={`px-4 py-1 text-[10px] font-bold uppercase transition-colors ${activeTab === t ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-500 hover:text-gray-300'}`}>{t}</button>
                             ))}
                         </div>
-
-                        <div className="flex-1 flex flex-col min-h-0">
+                        
+                        <div className="flex-1 min-h-[140px]">
                             {activeTab === 'market' && (
-                                <div className="space-y-2 animate-slide-up">
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-gray-400">Audit Risk</span>
-                                        <span className={`font-bold ${uiState.auditRisk > 50 ? 'text-red-500' : 'text-green-500'}`}>{uiState.auditRisk.toFixed(0)}%</span>
+                                <div className="grid grid-cols-2 gap-4 animate-fade-in">
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between text-xs"><span>Audit Risk</span><span className={uiState.auditRisk > 50 ? 'text-red-500' : 'text-green-500'}>{uiState.auditRisk.toFixed(0)}%</span></div>
+                                        <button onClick={() => { gameState.current.score += 5000; gameState.current.auditRisk += 15; playSound('cash'); }} className="w-full py-3 bg-blue-900/30 border border-blue-500/50 text-blue-400 text-[10px] font-bold rounded hover:bg-blue-900/50 transition-colors">COOK BOOKS (MARK-TO-MARKET)</button>
+                                        <button onClick={() => { gameState.current.auditRisk = Math.max(0, uiState.auditRisk-20); gameState.current.score -= 2000; playSound('shred'); }} className="w-full py-3 bg-red-900/30 border border-red-500/50 text-red-400 text-[10px] font-bold rounded hover:bg-red-900/50 transition-colors">SHRED DOCUMENTS</button>
                                     </div>
-                                    <button onClick={cookBooks} className="w-full py-3 mt-2 bg-orange-500/20 border border-orange-500/50 text-orange-300 rounded hover:bg-orange-500/30 text-xs font-bold flex items-center justify-center gap-2 transition-all duration-150 hover:scale-105 active:scale-95">
-                                        <ShieldAlert size={14} /> MARK-TO-MARKET
-                                    </button>
-                                    <button 
-                                        onClick={() => {
-                                            gameState.current.artificialShortage = !gameState.current.artificialShortage;
-                                            triggerAlert("GRID MANIPULATION", `Artificial shortage ${!gameState.current.artificialShortage ? 'active' : 'disabled'}. Prices volatile.`, 'warning');
-                                        }}
-                                        className={`w-full py-3 bg-purple-500/20 border border-purple-500/50 text-purple-300 rounded hover:bg-purple-500/30 text-xs font-bold flex items-center justify-center gap-2 transition-all duration-150 hover:scale-105 active:scale-95 ${uiState.artificialShortage ? 'bg-purple-600/50 ring-1 ring-purple-400' : ''}`}
-                                    >
-                                        <TrendingDown size={14} /> ARTIFICIAL SHORTAGE
-                                    </button>
-                                </div>
-                            )}
-
-                            {activeTab === 'bank' && (
-                                <div className="space-y-3 animate-slide-up">
-                                    <div className="flex justify-between text-xs">
-                                        <span className="text-gray-400">Debt</span>
-                                        <span className="text-red-400">{formatMoney(uiState.loan)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-xs">
-                                        <span className="text-gray-400">Offshore</span>
-                                        <span className="text-purple-400 font-mono">{formatMoney(uiState.offshore)}</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2 mt-2">
-                                        <button 
-                                            onClick={() => { gameState.current.score += 5000; gameState.current.loan += 5000; playSound('buy'); }}
-                                            className="py-2 bg-green-600/20 border border-green-500/30 text-green-400 rounded text-xs hover:bg-green-600/30 transition-all duration-150 hover:scale-105 active:scale-95"
-                                        >
-                                            BORROW $5K
-                                        </button>
-                                        <button 
-                                            onClick={() => { 
-                                                if(gameState.current.score >= 1000) {
-                                                    gameState.current.score -= 1000;
-                                                    gameState.current.offshore += 1000;
-                                                    playSound('cash');
-                                                }
-                                            }}
-                                            className="py-2 bg-purple-600/20 border border-purple-500/30 text-purple-400 rounded text-xs hover:bg-purple-600/30 transition-all duration-150 hover:scale-105 active:scale-95"
-                                        >
-                                            SIPHON $1K
-                                        </button>
+                                    <div className="h-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={stockHistory}>
+                                                <Area type="monotone" dataKey="price" stroke="#4ade80" fill="#4ade8033" />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
                                     </div>
                                 </div>
                             )}
 
-                            {activeTab === 'politics' && (
-                                <div className="space-y-2 animate-slide-up">
-                                     <div className="flex justify-between items-center text-sm mb-2">
-                                        <span className="text-gray-400">Political Capital</span>
-                                        <div className="flex gap-1">
-                                            {[...Array(Math.min(10, uiState.politicalCapital))].map((_, i) => (
-                                                <div key={i} className="w-1 h-3 bg-blue-500 rounded-full" />
-                                            ))}
-                                        </div>
+                            {activeTab === 'partnerships' && (
+                                <div className="animate-fade-in space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs text-gray-400">Hidden Liabilities: <b className="text-purple-400">${Math.floor(uiState.totalHiddenDebt).toLocaleString()}</b></span>
+                                        <button onClick={createSPE} className="px-4 py-2 bg-purple-600 text-[10px] font-bold rounded hover:bg-purple-500 transition-colors shadow-lg shadow-purple-900/20">NEW PARTNERSHIP (-$1K)</button>
                                     </div>
-                                    <button 
-                                        onClick={() => handleBuy('LOBBY')}
-                                        className="w-full py-2 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded text-xs hover:bg-blue-600/30 transition-all flex justify-between px-3"
-                                    >
-                                        <span>HIRE LOBBYIST</span>
-                                        <span className="text-yellow-500">${PRICES.LOBBY}</span>
-                                    </button>
-                                    <button 
-                                        onClick={() => handleBuy('CAMPAIGN_DONATION')}
-                                        className="w-full py-2 bg-red-600/20 border border-red-500/30 text-red-400 rounded text-xs hover:bg-red-600/30 transition-all flex justify-between px-3"
-                                    >
-                                        <span>BUSH/GORE DONATION</span>
-                                        <span className="text-yellow-500">${PRICES.CAMPAIGN_DONATION}</span>
-                                    </button>
-                                    <div className="text-[10px] text-gray-500 mt-2 leading-tight italic">
-                                        "Political capital decays over time. Use it to suppress regulatory audits automatically."
+                                    <div className="grid grid-cols-3 gap-2 h-20 overflow-y-auto">
+                                        {uiState.spes.map(spe => (
+                                            <div key={spe.id} className={`p-2 rounded border text-[9px] ${spe.active ? 'bg-green-900/20 border-green-500' : 'bg-red-900/20 border-red-500'}`}>
+                                                <div className="font-bold">{spe.name}</div>
+                                                <div>Debt: ${Math.floor(spe.debtHidden)}</div>
+                                                <div className="text-gray-500">Trigger: ${spe.triggerPrice.toFixed(0)}</div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             )}
 
                             {activeTab === 'shop' && (
-                                <div className="space-y-1 overflow-y-auto pr-2 h-32 animate-slide-up">
-                                    {[
-                                        { key: 'SHRED', label: 'Shred Docs', cost: PRICES.SHRED },
-                                        { key: 'REFUEL', label: 'Refuel Core', cost: PRICES.REFUEL },
-                                        { key: 'FIX_PUMP', label: 'Fix Pump', cost: PRICES.FIX_PUMP },
-                                        { key: 'FIX_TURB', label: 'Fix Turbine', cost: PRICES.FIX_TURB },
-                                        { key: 'PUMP_UPGRADE_BASE', label: 'Upg. Pump', cost: PRICES.PUMP_UPGRADE_BASE * uiState.pumpLevel },
-                                        { key: 'AUTOSCRAM', label: 'Auto-SCRAM', cost: PRICES.AUTOSCRAM, disabled: uiState.hasAutoScram }
-                                    ].map((item: any) => {
-                                        const diffMult = 1 + (uiState.difficulty - 1) * 0.25;
-                                        const finalCost = item.cost * diffMult;
-                                        return (
-                                            <button
-                                                key={item.key}
-                                                onClick={() => handleBuy(item.key)}
-                                                disabled={item.disabled}
-                                                className={`w-full flex justify-between items-center p-2 rounded text-xs border transition-all duration-150 ${
-                                                    uiState.score >= finalCost && !item.disabled
-                                                    ? 'bg-white/5 border-white/10 hover:bg-white/10 text-gray-200 hover:scale-[1.02] active:scale-[0.98]' 
-                                                    : 'bg-black/20 border-transparent text-gray-600 cursor-not-allowed'
-                                                }`}
-                                            >
-                                                <span>{item.label}</span>
-                                                <span className="font-mono font-bold text-yellow-500">${Math.floor(finalCost)}</span>
-                                            </button>
-                                        );
-                                    })}
+                                <div className="grid grid-cols-2 gap-2 animate-fade-in">
+                                    <button onClick={() => { if(uiState.score > 1000) { gameState.current.score -= 1000; gameState.current.pumpHealth = 100; playSound('repair'); } else playSound('error'); }} className="p-2 border border-white/10 rounded flex justify-between text-[10px] hover:bg-white/5 transition-colors"><span>REPAIR PUMP</span><span className="text-yellow-500">$1000</span></button>
+                                    <button onClick={() => { if(uiState.score > 2000) { gameState.current.score -= 2000; gameState.current.hasAutoScram = true; playSound('buy'); } else playSound('error'); }} className="p-2 border border-white/10 rounded flex justify-between text-[10px] hover:bg-white/5 transition-colors"><span>AUTO-SCRAM</span><span className="text-yellow-500">$2000</span></button>
+                                    <button onClick={() => { if(uiState.score > 500) { gameState.current.score -= 500; gameState.current.fuel = 100; playSound('repair'); } else playSound('error'); }} className="p-2 border border-white/10 rounded flex justify-between text-[10px] hover:bg-white/5 transition-colors"><span>REFUEL CORE</span><span className="text-yellow-500">$500</span></button>
+                                    <button onClick={() => { setCutaway(!cutaway); playSound('click'); }} className="p-2 border border-white/10 rounded text-[10px] hover:bg-white/5 transition-colors">TOGGLE CAMERA VIEW</button>
+                                </div>
+                            )}
+
+                             {activeTab === 'bank' && (
+                                <div className="space-y-4 animate-fade-in">
+                                    <div className="flex justify-between text-xs"><span>Offshore Holdings</span><span className="text-purple-400 font-bold">${Math.floor(uiState.offshore).toLocaleString()}</span></div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                         <button onClick={() => { if(uiState.score > 2000) { gameState.current.score -= 2000; gameState.current.offshore += 2000; playSound('cash'); } else playSound('error'); }} className="py-4 bg-purple-900/40 border border-purple-500/50 text-purple-300 text-[10px] font-bold rounded hover:bg-purple-900/60 transition-colors">SIPHON $2K TO CAYMANS</button>
+                                         <button onClick={() => { gameState.current.score += 10000; gameState.current.loan += 10000; playSound('cash'); }} className="py-4 bg-green-900/40 border border-green-500/50 text-green-300 text-[10px] font-bold rounded hover:bg-green-900/60 transition-colors">BORROW $10K (EMERGENCY)</button>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -714,6 +379,25 @@ const App: React.FC = () => {
 
                 </div>
             </div>
+
+            {/* Game Over Modal */}
+            {uiState.gameOver && (
+                <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center text-center animate-fade-in backdrop-blur-xl">
+                    <h1 className="text-8xl font-black text-red-600 mb-4 italic tracking-tighter animate-pulse">{uiState.failReason}</h1>
+                    <div className="text-2xl font-mono text-gray-400 mb-10">Wealth Extracted: <span className="text-green-400">${Math.floor(uiState.offshore).toLocaleString()}</span></div>
+                    <button onClick={() => window.location.reload()} className="px-10 py-4 border-2 border-white/20 rounded-full hover:bg-white hover:text-black transition-all font-black uppercase tracking-widest">RETRY FRAUD</button>
+                </div>
+            )}
+            
+            {/* Event Alerts */}
+            {activeAlert && (
+                <div className="fixed top-1/3 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg animate-pop-in pointer-events-none">
+                    <div className={`p-8 border-4 rounded-2xl shadow-2xl ${activeAlert.type === 'danger' ? 'bg-red-950/90 border-red-500 text-white shadow-red-500/50' : 'bg-blue-950/90 border-blue-500 text-blue-100 shadow-blue-500/50'}`}>
+                        <div className="text-4xl font-black mb-2 uppercase italic">{activeAlert.title}</div>
+                        <div className="text-lg font-mono leading-tight">{activeAlert.message}</div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

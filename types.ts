@@ -1,8 +1,17 @@
+
 export enum Difficulty {
     ETHICAL = 1,
     AGGRESSIVE = 2,
     SKILLING = 3,
     FASTOW = 4
+}
+
+export interface SPE {
+    id: string;
+    name: string;
+    debtHidden: number;
+    triggerPrice: number;
+    active: boolean;
 }
 
 export interface GameState {
@@ -17,6 +26,11 @@ export interface GameState {
     pumpHealth: number;
     turbineHealth: number;
     
+    // Advanced Physics
+    xenon: number; // Neutron poisoning (0-100)
+    flowRate: number; // Actual coolant flow (0-100)
+    reactivity: number; // Net neutron multiplication factor
+    
     // Grid & Output
     power: number;
     gridDemand: number;
@@ -28,12 +42,16 @@ export interface GameState {
     creditScore: number;
     offshore: number;
     auditRisk: number;
-    politicalCapital: number; // New resource
+    politicalCapital: number;
+    
+    // Special Purpose Entities
+    spes: SPE[];
+    totalHiddenDebt: number;
     
     // Simulation
     dayTime: number;
     dayCount: number;
-    date: string; // Tracking real calendar date
+    date: string; 
     weather: 'sunny' | 'cloudy' | 'rainy' | 'snowy' | 'thunderstorm';
     gameOver: boolean;
     failReason: string | null;
@@ -61,8 +79,8 @@ export interface StockPoint {
 }
 
 export interface HistoricEvent {
-    month: number; // 1-12
-    year: number; // 2000 or 2001
+    month: number;
+    year: number;
     title: string;
     description: string;
     type: 'info' | 'warning' | 'danger';

@@ -1,3 +1,4 @@
+
 import { GameState, HistoricEvent } from "./types";
 
 export const MAX_TEMP = 3000;
@@ -13,18 +14,18 @@ export const PRICES = {
     FIX_TURB: 600,
     PUMP_UPGRADE_BASE: 800,
     AUTOSCRAM: 1200,
-    CAMPAIGN_DONATION: 2000
+    CAMPAIGN_DONATION: 2000,
+    CREATE_SPE: 1000
 };
 
-// Starting at Jan 2000. Game ends Dec 2001.
 export const START_DATE = new Date("2000-01-01");
 
 export interface WeatherPattern {
     month: number;
     year: number;
     type: 'sunny' | 'cloudy' | 'rainy' | 'snowy' | 'thunderstorm';
-    tempMod: number; // Multiplier for ambient temp/cooling difficulty
-    demandMod: number; // Multiplier for grid demand
+    tempMod: number; 
+    demandMod: number; 
     name: string;
 }
 
@@ -41,7 +42,7 @@ export const HISTORIC_EVENTS: HistoricEvent[] = [
     { 
         month: 5, year: 2000, 
         title: "CALIFORNIA ENERGY CRISIS BEGINS", 
-        description: "Prices uncapped. Market volatility extreme. Opportunity for 'creative' arbitrage.",
+        description: "Prices uncapped. Market volatility extreme.",
         type: 'warning',
         effect: (s) => { s.gridDemand += 200; }
     },
@@ -68,21 +69,21 @@ export const HISTORIC_EVENTS: HistoricEvent[] = [
     { 
         month: 3, year: 2001, 
         title: "ROLLING BLACKOUTS", 
-        description: "California goes dark. Public outrage growing. Hide the money.", 
+        description: "California goes dark. Public outrage growing.", 
         type: 'danger',
         effect: (s) => { s.auditRisk += 10; }
     },
     { 
         month: 8, year: 2001, 
         title: "SKILLING RESIGNS", 
-        description: "'Personal reasons'. Stock plummets. Panic in the boardroom.", 
+        description: "Stock plummets. Panic in the boardroom.", 
         type: 'danger',
         effect: (s) => { s.score *= 0.7; s.auditRisk += 20; }
     },
     { 
         month: 9, year: 2001, 
         title: "SEPTEMBER 11 ATTACKS", 
-        description: "National tragedy. Markets closed. Regulators distracted. Audit risk drops temporarily.", 
+        description: "National tragedy. Regulators distracted.", 
         type: 'danger',
         effect: (s) => { s.auditRisk = 0; s.gridDemand *= 0.5; s.score *= 0.8; }
     },
@@ -112,15 +113,20 @@ export const INITIAL_STATE: GameState = {
     fuel: 100,
     pumpHealth: 100,
     turbineHealth: 100,
+    xenon: 0,
+    flowRate: 100,
+    reactivity: 0,
     power: 0,
     gridDemand: 500,
-    score: 40, // Starting Stock Price Jan 2000
+    score: 40, 
     cash: 5000, 
     loan: 0,
     creditScore: 50,
     offshore: 0,
     auditRisk: 0,
     politicalCapital: 10,
+    spes: [],
+    totalHiddenDebt: 0,
     dayTime: 8.0,
     dayCount: 0,
     date: "Jan 2000",
