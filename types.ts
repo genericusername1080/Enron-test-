@@ -30,6 +30,7 @@ export interface GameState {
     xenon: number; // Neutron poisoning (0-100)
     flowRate: number; // Actual coolant flow (0-100)
     reactivity: number; // Net neutron multiplication factor
+    meltdownProgress: number; // 0-100, if 100 triggers Game Over
     
     // Grid & Output
     power: number;

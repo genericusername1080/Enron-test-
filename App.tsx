@@ -4,7 +4,7 @@ import { Play, RotateCcw, AlertTriangle, Zap, DollarSign, Activity, ShieldAlert,
 import Scene3D from './components/Scene3D';
 import ProgressBar from './components/UI/ProgressBar';
 import { GameState, LogEvent, StockPoint, Difficulty, SPE } from './types';
-import { INITIAL_STATE, PRICES, MAX_TEMP, MAX_PRES, MAX_RAD, MAX_POWER, HISTORIC_EVENTS, START_DATE, HISTORIC_WEATHER_PATTERNS } from './constants';
+import { INITIAL_STATE, PRICES, MAX_TEMP, MAX_PRES, MAX_RAD, MAX_POWER, HISTORIC_EVENTS, START_DATE, HISTORIC_WEATHER_PATTERNS, MELTDOWN_TEMP_START, MELTDOWN_PRES_START } from './constants';
 import { playSound, initAudio, startAmbience } from './utils/audioUtils';
 import { generateCorporateSpin, speakCorporateAdvice } from './services/geminiService';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -155,25 +155,17 @@ const App: React.FC = () => {
             // --- Reactor Physics 2.0 (Xenon Poisoning) ---
             const rodInsertion = s.rods / 100; // 1.0 = fully inserted (shutdown), 0.0 = fully out (max power)
             
-            // Reactivity: 
-            // - Base reactivity increases as rods are pulled out (1 - rodInsertion)
-            // - Xenon acts as a neutron poison (negative reactivity)
-            // - Temperature provides negative feedback (doppler broadening/density)
-            
+            // Reactivity
             const xenonPenalty = s.xenon * 0.005; // Xenon poisoning effect
             const tempPenalty = (s.temp - 300) * 0.0001; // Temp feedback
             
             s.reactivity = (1 - rodInsertion) - xenonPenalty - tempPenalty;
             s.reactivity = Math.max(-1, Math.min(1, s.reactivity)); // Clamp
 
-            // Xenon Dynamics:
-            // 1. Production: proportional to Power (fission product decay)
-            // 2. Burn: proportional to Neutron Flux (Power) * Xenon concentration
-            // 3. Decay: Natural radioactive decay
+            // Xenon Dynamics
             const xenonProduction = s.power * 0.0015;
             const xenonBurn = s.xenon * s.power * 0.00005;
             const xenonDecay = s.xenon * 0.001;
-            
             s.xenon = Math.max(0, Math.min(100, s.xenon + xenonProduction - xenonBurn - xenonDecay));
 
             // Thermal Hydraulics
@@ -197,13 +189,27 @@ const App: React.FC = () => {
             const output = valveOut * 25 * (s.turbineHealth/100);
             s.power = Math.min(1500, output);
             
+            // --- Meltdown Sequence ---
+            const isMeltdownCritical = s.temp > MELTDOWN_TEMP_START || s.pressure > MELTDOWN_PRES_START;
+            if (isMeltdownCritical) {
+                s.meltdownProgress = Math.min(100, s.meltdownProgress + 0.3); // Approx 16s to doom
+                if (s.meltdownProgress > 20 && Math.random() < 0.1) playSound('alarm'); 
+            } else {
+                s.meltdownProgress = Math.max(0, s.meltdownProgress - 0.5);
+            }
+
+            if (s.meltdownProgress >= 100) {
+                s.gameOver = true;
+                s.failReason = "CRITICAL CORE MELTDOWN";
+            }
+
             // --- Financial Physics ---
             // Score tracks power output but punished by audit risk
             const revenue = (s.power - 500) * 0.02;
             const debtInterest = s.loan * 0.0001;
             s.score += revenue - debtInterest;
             
-            if (s.temp > MAX_TEMP) { s.gameOver = true; s.failReason = "CORE MELTDOWN"; }
+            if (s.temp > MAX_TEMP) { s.gameOver = true; s.failReason = "CATASTROPHIC FAILURE"; }
             if (s.pressure > MAX_PRES) { s.gameOver = true; s.failReason = "CONTAINMENT BREACH"; }
             if (s.score < -5000) { s.gameOver = true; s.failReason = "TOTAL BANKRUPTCY"; }
 
@@ -248,10 +254,25 @@ const App: React.FC = () => {
     );
 
     return (
-        <div className={`h-screen w-screen relative bg-black overflow-hidden font-sans ${uiState.radiation > 100 ? 'contrast-125 saturate-150 brightness-110' : ''}`}>
-            {/* Visual Overlays for Radiation/Heat */}
+        <div className={`h-screen w-screen relative bg-black overflow-hidden font-sans ${uiState.meltdownProgress > 0 ? 'animate-shake' : ''} ${uiState.radiation > 100 ? 'contrast-125 saturate-150 brightness-110' : ''}`}>
+            {/* Visual Overlays for Radiation/Heat/Meltdown */}
             {uiState.radiation > 150 && <div className="absolute inset-0 z-40 pointer-events-none mix-blend-screen opacity-30 bg-[radial-gradient(circle,rgba(0,255,0,0.2)_0%,transparent_70%)] animate-pulse" />}
             {uiState.temp > 2400 && <div className="absolute inset-0 z-40 pointer-events-none mix-blend-overlay opacity-20 bg-orange-900 animate-pulse" />}
+            
+            {uiState.meltdownProgress > 0 && (
+                <div className="fixed inset-0 z-40 flex flex-col items-center justify-center pointer-events-none">
+                    <div className="w-full h-full absolute bg-red-900/20 animate-pulse"></div>
+                    <div className="bg-black/90 border-4 border-red-500 p-8 rounded-xl text-center z-50 shadow-[0_0_100px_rgba(220,38,38,0.5)]">
+                        <h2 className="text-6xl font-black text-red-500 tracking-tighter animate-pulse drop-shadow-[0_0_10px_rgba(255,0,0,0.8)]">MELTDOWN IMMINENT</h2>
+                        <div className="text-4xl font-mono text-white mt-4">{uiState.meltdownProgress.toFixed(1)}%</div>
+                        <div className="w-96 h-8 bg-gray-900 rounded-full mt-4 border border-red-500 overflow-hidden relative">
+                            <div className="h-full bg-red-600 transition-all duration-100 ease-linear" style={{width: `${uiState.meltdownProgress}%`}}></div>
+                            <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(0,0,0,0.3)_50%,transparent_75%)] bg-[length:20px_20px]"></div>
+                        </div>
+                        <div className="text-red-300 font-mono mt-2 animate-bounce">EVACUATE FACILITY</div>
+                    </div>
+                </div>
+            )}
             
             <Scene3D gameState={gameState} cutaway={cutaway} />
 

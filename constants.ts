@@ -6,6 +6,9 @@ export const MAX_PRES = 2000;
 export const MAX_POWER = 1500;
 export const MAX_RAD = 1000;
 
+export const MELTDOWN_TEMP_START = 2600;
+export const MELTDOWN_PRES_START = 1800;
+
 export const PRICES = {
     SHRED: 3000,
     LOBBY: 5000,
@@ -116,6 +119,7 @@ export const INITIAL_STATE: GameState = {
     xenon: 0,
     flowRate: 100,
     reactivity: 0,
+    meltdownProgress: 0,
     power: 0,
     gridDemand: 500,
     score: 40, 
